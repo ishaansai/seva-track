@@ -4,8 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 
 const CONTACTS = [
-  { name: 'Anupama', phone: '9258904273', display: '(925) 890-4273', role: 'Coordinator' },
-  { name: 'Sharath', phone: '9258904271', display: '(925) 890-4271', role: 'Coordinator' },
+  { name: 'Anupama', phone: '9258904273', role: 'Coordinator' },
+  { name: 'Sharath', phone: '9258904271', role: 'Coordinator' },
 ];
 
 const ADDRESS = '925 Roselma Pl, Pleasanton CA 94566';
@@ -49,21 +49,21 @@ export default function LogisticsPage() {
   return (
     <div className="min-h-screen bg-orange-50">
       <header className="bg-white border-b border-orange-100 px-4 py-4 flex items-center sticky top-0 z-10 shadow-sm">
-        <Link href="/" className="text-orange-500 text-sm font-medium">← Home</Link>
-        <h1 className="font-bold text-gray-800 mx-auto">Logistics Guide</h1>
+        <Link href="/" className="text-orange-500 text-base font-medium">← Home</Link>
+        <h1 className="font-bold text-gray-800 text-lg mx-auto">Logistics Guide</h1>
         <div className="w-12" />
       </header>
 
       <div className="flex bg-white border-b border-orange-100">
         <button
           onClick={() => setTab('guide')}
-          className={`flex-1 py-3 text-sm font-semibold transition-colors ${tab === 'guide' ? 'text-orange-600 border-b-2 border-orange-500' : 'text-gray-400'}`}
+          className={`flex-1 py-3.5 text-base font-semibold transition-colors ${tab === 'guide' ? 'text-orange-600 border-b-2 border-orange-500' : 'text-gray-400'}`}
         >
           Quick Guide
         </button>
         <button
           onClick={() => setTab('pdf')}
-          className={`flex-1 py-3 text-sm font-semibold transition-colors ${tab === 'pdf' ? 'text-orange-600 border-b-2 border-orange-500' : 'text-gray-400'}`}
+          className={`flex-1 py-3.5 text-base font-semibold transition-colors ${tab === 'pdf' ? 'text-orange-600 border-b-2 border-orange-500' : 'text-gray-400'}`}
         >
           Full Document
         </button>
@@ -77,22 +77,31 @@ export default function LogisticsPage() {
             {/* Key Contacts */}
             <div className="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden mt-2">
               <div className="bg-orange-500 px-4 py-2.5">
-                <p className="text-white font-bold text-sm">Key Contacts</p>
+                <p className="text-white font-bold text-base">Key Contacts</p>
               </div>
               <div className="divide-y divide-gray-50">
                 {CONTACTS.map(c => (
                   <div key={c.name} className="flex items-center justify-between px-4 py-3">
                     <div>
-                      <p className="font-semibold text-gray-800">{c.name}</p>
-                      <p className="text-xs text-gray-400">{c.role}</p>
+                      <p className="font-semibold text-gray-800 text-base">{c.name}</p>
+                      <p className="text-sm text-gray-400">{c.role}</p>
                     </div>
-                    <a
-                      href={`tel:${c.phone}`}
-                      className="flex items-center gap-2 bg-green-50 text-green-700 border border-green-200 px-3 py-1.5 rounded-xl text-sm font-semibold hover:bg-green-100 transition-colors"
-                    >
-                      <span>📞</span>
-                      {c.display}
-                    </a>
+                    <div className="flex gap-2">
+                      <a
+                        href={`tel:${c.phone}`}
+                        className="flex items-center gap-1.5 bg-green-50 text-green-700 border border-green-200 px-3 py-2 rounded-xl text-base font-semibold hover:bg-green-100 transition-colors"
+                      >
+                        📞 Call
+                      </a>
+                      <a
+                        href={`https://wa.me/${c.phone}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 bg-green-500 text-white px-3 py-2 rounded-xl text-base font-semibold hover:bg-green-600 transition-colors"
+                      >
+                        💬 WA
+                      </a>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -101,15 +110,15 @@ export default function LogisticsPage() {
             {/* Drop-off address */}
             <div className="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden">
               <div className="bg-amber-500 px-4 py-2.5">
-                <p className="text-white font-bold text-sm">Drop-Off Location</p>
+                <p className="text-white font-bold text-base">Drop-Off Location</p>
               </div>
               <div className="px-4 py-3">
                 <div className="flex items-start gap-3 mb-3">
                   <span className="text-2xl flex-shrink-0">📍</span>
                   <div>
-                    <p className="font-semibold text-gray-800">{ADDRESS}</p>
-                    <p className="text-xs text-amber-700 font-semibold mt-1">Tuesday · 6:00 PM – 9:00 PM</p>
-                    <p className="text-xs text-gray-400 mt-0.5">Drop off the day before Wednesday delivery</p>
+                    <p className="font-semibold text-gray-800 text-base">{ADDRESS}</p>
+                    <p className="text-sm text-amber-700 font-semibold mt-1">Tuesday · 6:00 PM – 9:00 PM</p>
+                    <p className="text-sm text-gray-400 mt-0.5">Drop off the day before Wednesday delivery</p>
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -117,7 +126,7 @@ export default function LogisticsPage() {
                     href={MAPS_URL}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex-1 text-center text-xs font-semibold bg-gray-100 text-gray-700 py-2 rounded-xl hover:bg-gray-200 transition-colors"
+                    className="flex-1 text-center text-base font-semibold bg-gray-100 text-gray-700 py-2.5 rounded-xl hover:bg-gray-200 transition-colors"
                   >
                     🗺 Apple Maps
                   </a>
@@ -125,7 +134,7 @@ export default function LogisticsPage() {
                     href={GMAPS_URL}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex-1 text-center text-xs font-semibold bg-gray-100 text-gray-700 py-2 rounded-xl hover:bg-gray-200 transition-colors"
+                    className="flex-1 text-center text-base font-semibold bg-gray-100 text-gray-700 py-2.5 rounded-xl hover:bg-gray-200 transition-colors"
                   >
                     🗺 Google Maps
                   </a>
@@ -136,15 +145,15 @@ export default function LogisticsPage() {
             {/* How it works */}
             <div className="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden">
               <div className="bg-orange-100 px-4 py-2.5">
-                <p className="text-orange-800 font-bold text-sm">How It Works</p>
+                <p className="text-orange-800 font-bold text-base">How It Works</p>
               </div>
               <div className="px-4 py-3 space-y-3">
                 {HOW_IT_WORKS.map((step, i) => (
                   <div key={i} className="flex items-start gap-3">
-                    <div className="w-7 h-7 bg-orange-50 rounded-full flex items-center justify-center flex-shrink-0 text-base">
+                    <div className="w-8 h-8 bg-orange-50 rounded-full flex items-center justify-center flex-shrink-0 text-lg">
                       {step.icon}
                     </div>
-                    <p className="text-sm text-gray-700 pt-0.5">{step.text}</p>
+                    <p className="text-base text-gray-700 pt-0.5">{step.text}</p>
                   </div>
                 ))}
               </div>
@@ -153,14 +162,14 @@ export default function LogisticsPage() {
             {/* Each bag contents */}
             <div className="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden">
               <div className="bg-orange-100 px-4 py-2.5 flex items-center justify-between">
-                <p className="text-orange-800 font-bold text-sm">Each Bag Contains</p>
-                <span className="bg-orange-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">5 items</span>
+                <p className="text-orange-800 font-bold text-base">Each Bag Contains</p>
+                <span className="bg-orange-500 text-white text-sm font-bold px-2 py-0.5 rounded-full">5 items</span>
               </div>
               <div className="grid grid-cols-5 gap-2 p-4">
                 {BAG_CONTENTS.map(({ icon, label }) => (
                   <div key={label} className="text-center">
                     <div className="bg-orange-50 rounded-xl py-2.5 mb-1.5 text-2xl">{icon}</div>
-                    <p className="text-xs text-gray-600 leading-tight font-medium">{label}</p>
+                    <p className="text-sm text-gray-600 leading-tight font-medium">{label}</p>
                   </div>
                 ))}
               </div>
@@ -169,22 +178,22 @@ export default function LogisticsPage() {
             {/* Shopping list */}
             <div className="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden">
               <div className="bg-orange-100 px-4 py-2.5 flex items-center justify-between">
-                <p className="text-orange-800 font-bold text-sm">Shopping List</p>
-                <span className="text-orange-600 text-xs font-medium">For 25 bags · Costco recommended</span>
+                <p className="text-orange-800 font-bold text-base">Shopping List</p>
+                <span className="text-orange-600 text-sm font-medium">For 25 bags · Costco</span>
               </div>
               <div className="px-4 py-3 space-y-3">
                 {SHOPPING_LIST.map((row, i) => (
                   <div key={i} className="flex items-start gap-3">
-                    <span className="w-6 h-6 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
+                    <span className="w-7 h-7 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 mt-0.5">
                       {i + 1}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-800">{row.item}</p>
-                      <p className="text-xs text-gray-400">{row.qty}</p>
+                      <p className="text-base font-semibold text-gray-800">{row.item}</p>
+                      <p className="text-sm text-gray-400">{row.qty}</p>
                     </div>
                   </div>
                 ))}
-                <p className="text-xs text-gray-400 italic border-t border-gray-50 pt-3">
+                <p className="text-sm text-gray-400 italic border-t border-gray-50 pt-3">
                   You can swap chips, bars, or drinks for any equivalent item.
                 </p>
               </div>

@@ -1,6 +1,9 @@
 export type ItemType = 'nutritional' | 'meals' | 'both';
 export type DeliveryStatus = 'pending' | 'delivered';
 
+export const DEFAULT_LOCATION = '925 Roselma Pl, Pleasanton CA 94566';
+export const COORDINATOR_PHONE = '9258904273'; // Anupama
+
 export interface SevaEvent {
   id: string;
   date: string; // YYYY-MM-DD
@@ -9,6 +12,7 @@ export interface SevaEvent {
   nutritionalSlots: number;
   dropOffStart: string;
   dropOffEnd: string;
+  dropOffLocation: string;
   note?: string;
 }
 
@@ -16,7 +20,7 @@ export interface Signup {
   id: string;
   eventId: string;
   memberName: string;
-  memberContact: string;
+  memberContact: string; // phone number
   itemType: ItemType;
   status: DeliveryStatus;
   deliveryPhotoUrl?: string;
@@ -40,6 +44,7 @@ export function getEvents(): SevaEvent[] {
       nutritionalSlots: e.nutritionalSlots ?? 3,
       dropOffStart: e.dropOffStart ?? '18:00',
       dropOffEnd: e.dropOffEnd ?? '21:00',
+      dropOffLocation: e.dropOffLocation ?? DEFAULT_LOCATION,
       note: e.note,
     }));
   }
@@ -122,4 +127,10 @@ export function getSlotsUsed(eventId: string, signups: Signup[]) {
     mealBagUsed: ev.filter(s => s.itemType === 'meals' || s.itemType === 'both').length,
     nutritionalUsed: ev.filter(s => s.itemType === 'nutritional' || s.itemType === 'both').length,
   };
+}
+
+export function itemTypeLabel(type: ItemType): string {
+  if (type === 'meals') return '25 Meal Bags';
+  if (type === 'nutritional') return 'Nutritional Items';
+  return 'Meal Bags + Nutritional Items';
 }
