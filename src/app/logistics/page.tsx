@@ -1,16 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-
-const CONTACTS = [
-  { name: 'Anupama', phone: '9258904273', role: 'Coordinator' },
-  { name: 'Sharath', phone: '9258904271', role: 'Coordinator' },
-];
-
-const ADDRESS = '925 Roselma Pl, Pleasanton CA 94566';
-const MAPS_URL = `https://maps.apple.com/?q=${encodeURIComponent(ADDRESS)}`;
-const GMAPS_URL = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ADDRESS)}`;
+import { getCoordinator, seedDefaultCoordinator, CoordinatorProfile } from '@/lib/store';
 
 const BAG_CONTENTS = [
   { icon: '🥪', label: 'PB&J Sandwich' },
@@ -34,113 +27,99 @@ const SHOPPING_LIST = [
 ];
 
 const HOW_IT_WORKS = [
-  { icon: '📅', text: 'Sign up at the beginning of each month for that month\'s dates' },
+  { icon: '📅', text: "Sign up at the beginning of each month for that month's dates" },
   { icon: '🛒', text: 'Shop for ingredients using the list below (most from Costco)' },
   { icon: '🥪', text: 'Make 25 PB&J sandwiches + pack 5 items per brown bag' },
   { icon: '😷', text: 'Wear a mask and gloves while making and packing' },
   { icon: '🏷', text: 'Label bags with Seva or Chirag SJC stickers' },
-  { icon: '📦', text: 'Drop off bags at coordinator\'s home Tuesday 6–9 PM' },
-  { icon: '🚐', text: 'Bags are delivered to shelters every Wednesday' },
+  { icon: '📦', text: "Drop off bags at your coordinator's address (see date details in the app)" },
+  { icon: '🚐', text: 'Bags are delivered to shelters on delivery day' },
 ];
 
-export default function LogisticsPage() {
+function LogisticsPageInner() {
+  const searchParams = useSearchParams();
+  const coordId = searchParams.get('coord') ?? 'seva2024';
   const [tab, setTab] = useState<'guide' | 'pdf'>('guide');
+  const [coord, setCoord] = useState<CoordinatorProfile | null>(null);
+
+  useEffect(() => {
+    seedDefaultCoordinator();
+    setCoord(getCoordinator(coordId) ?? null);
+  }, [coordId]);
+
+  const mapsUrl = coord ? `https://maps.apple.com/?q=${encodeURIComponent(coord.address)}` : '';
+  const gmapsUrl = coord ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(coord.address)}` : '';
+  const memberUrl = `/member?coord=${coordId}`;
 
   return (
     <div className="min-h-screen bg-orange-50">
       <header className="bg-white border-b border-orange-100 px-4 py-4 flex items-center sticky top-0 z-10 shadow-sm">
-        <Link href="/" className="text-orange-500 text-base font-medium">← Home</Link>
+        <Link href={memberUrl} className="text-orange-500 text-base font-medium">← Back</Link>
         <h1 className="font-bold text-gray-800 text-lg mx-auto">Logistics Guide</h1>
         <div className="w-12" />
       </header>
 
       <div className="flex bg-white border-b border-orange-100">
-        <button
-          onClick={() => setTab('guide')}
-          className={`flex-1 py-3.5 text-base font-semibold transition-colors ${tab === 'guide' ? 'text-orange-600 border-b-2 border-orange-500' : 'text-gray-400'}`}
-        >
+        <button onClick={() => setTab('guide')} className={`flex-1 py-3.5 text-base font-semibold transition-colors ${tab === 'guide' ? 'text-orange-600 border-b-2 border-orange-500' : 'text-gray-400'}`}>
           Quick Guide
         </button>
-        <button
-          onClick={() => setTab('pdf')}
-          className={`flex-1 py-3.5 text-base font-semibold transition-colors ${tab === 'pdf' ? 'text-orange-600 border-b-2 border-orange-500' : 'text-gray-400'}`}
-        >
+        <button onClick={() => setTab('pdf')} className={`flex-1 py-3.5 text-base font-semibold transition-colors ${tab === 'pdf' ? 'text-orange-600 border-b-2 border-orange-500' : 'text-gray-400'}`}>
           Full Document
         </button>
       </div>
 
       <div className="max-w-lg mx-auto p-4 space-y-4">
 
-        {/* ── QUICK GUIDE ── */}
         {tab === 'guide' && (
           <>
-            {/* Key Contacts */}
-            <div className="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden mt-2">
-              <div className="bg-orange-500 px-4 py-2.5">
-                <p className="text-white font-bold text-base">Key Contacts</p>
-              </div>
-              <div className="divide-y divide-gray-50">
-                {CONTACTS.map(c => (
-                  <div key={c.name} className="flex items-center justify-between px-4 py-3">
-                    <div>
-                      <p className="font-semibold text-gray-800 text-base">{c.name}</p>
-                      <p className="text-sm text-gray-400">{c.role}</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <a
-                        href={`tel:${c.phone}`}
-                        className="flex items-center gap-1.5 bg-green-50 text-green-700 border border-green-200 px-3 py-2 rounded-xl text-base font-semibold hover:bg-green-100 transition-colors"
-                      >
-                        📞 Call
-                      </a>
-                      <a
-                        href={`https://wa.me/${c.phone}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 bg-green-500 text-white px-3 py-2 rounded-xl text-base font-semibold hover:bg-green-600 transition-colors"
-                      >
-                        💬 WA
-                      </a>
-                    </div>
+            {/* Coordinator contact — no number shown */}
+            {coord && (
+              <div className="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden mt-2">
+                <div className="bg-orange-500 px-4 py-2.5">
+                  <p className="text-white font-bold text-base">Coordinator Contact</p>
+                </div>
+                <div className="flex items-center justify-between px-4 py-3">
+                  <div>
+                    <p className="font-semibold text-gray-800 text-base">{coord.name}</p>
+                    <p className="text-sm text-gray-400">For questions &amp; drop-off info</p>
                   </div>
-                ))}
+                  <div className="flex gap-2">
+                    <a href={`tel:${coord.phone}`} className="flex items-center gap-1.5 bg-green-50 text-green-700 border border-green-200 px-3 py-2 rounded-xl text-base font-semibold hover:bg-green-100 transition-colors">
+                      📞 Call
+                    </a>
+                    <a href={`https://wa.me/${coord.phone}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 bg-green-500 text-white px-3 py-2 rounded-xl text-base font-semibold hover:bg-green-600 transition-colors">
+                      💬 WA
+                    </a>
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Drop-off address */}
-            <div className="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden">
-              <div className="bg-amber-500 px-4 py-2.5">
-                <p className="text-white font-bold text-base">Drop-Off Location</p>
-              </div>
-              <div className="px-4 py-3">
-                <div className="flex items-start gap-3 mb-3">
-                  <span className="text-2xl flex-shrink-0">📍</span>
-                  <div>
-                    <p className="font-semibold text-gray-800 text-base">{ADDRESS}</p>
-                    <p className="text-sm text-amber-700 font-semibold mt-1">Tuesday · 6:00 PM – 9:00 PM</p>
-                    <p className="text-sm text-gray-400 mt-0.5">Drop off the day before Wednesday delivery</p>
+            {coord && (
+              <div className="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden">
+                <div className="bg-amber-500 px-4 py-2.5">
+                  <p className="text-white font-bold text-base">Default Drop-Off Location</p>
+                </div>
+                <div className="px-4 py-3">
+                  <div className="flex items-start gap-3 mb-3">
+                    <span className="text-2xl flex-shrink-0">📍</span>
+                    <div>
+                      <p className="font-semibold text-gray-800 text-base">{coord.address}</p>
+                      <p className="text-sm text-gray-400 mt-0.5">Check your specific event date for exact address and time</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="flex-1 text-center text-base font-semibold bg-gray-100 text-gray-700 py-2.5 rounded-xl hover:bg-gray-200 transition-colors">
+                      🗺 Apple Maps
+                    </a>
+                    <a href={gmapsUrl} target="_blank" rel="noopener noreferrer" className="flex-1 text-center text-base font-semibold bg-gray-100 text-gray-700 py-2.5 rounded-xl hover:bg-gray-200 transition-colors">
+                      🗺 Google Maps
+                    </a>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <a
-                    href={MAPS_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 text-center text-base font-semibold bg-gray-100 text-gray-700 py-2.5 rounded-xl hover:bg-gray-200 transition-colors"
-                  >
-                    🗺 Apple Maps
-                  </a>
-                  <a
-                    href={GMAPS_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 text-center text-base font-semibold bg-gray-100 text-gray-700 py-2.5 rounded-xl hover:bg-gray-200 transition-colors"
-                  >
-                    🗺 Google Maps
-                  </a>
-                </div>
               </div>
-            </div>
+            )}
 
             {/* How it works */}
             <div className="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden">
@@ -150,9 +129,7 @@ export default function LogisticsPage() {
               <div className="px-4 py-3 space-y-3">
                 {HOW_IT_WORKS.map((step, i) => (
                   <div key={i} className="flex items-start gap-3">
-                    <div className="w-8 h-8 bg-orange-50 rounded-full flex items-center justify-center flex-shrink-0 text-lg">
-                      {step.icon}
-                    </div>
+                    <div className="w-8 h-8 bg-orange-50 rounded-full flex items-center justify-center flex-shrink-0 text-lg">{step.icon}</div>
                     <p className="text-base text-gray-700 pt-0.5">{step.text}</p>
                   </div>
                 ))}
@@ -184,9 +161,7 @@ export default function LogisticsPage() {
               <div className="px-4 py-3 space-y-3">
                 {SHOPPING_LIST.map((row, i) => (
                   <div key={i} className="flex items-start gap-3">
-                    <span className="w-7 h-7 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 mt-0.5">
-                      {i + 1}
-                    </span>
+                    <span className="w-7 h-7 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 mt-0.5">{i + 1}</span>
                     <div className="flex-1 min-w-0">
                       <p className="text-base font-semibold text-gray-800">{row.item}</p>
                       <p className="text-sm text-gray-400">{row.qty}</p>
@@ -201,37 +176,34 @@ export default function LogisticsPage() {
           </>
         )}
 
-        {/* ── FULL PDF ── */}
         {tab === 'pdf' && (
           <div className="mt-2 space-y-3">
             <div className="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                 <div>
-                  <p className="font-semibold text-gray-800 text-sm">Meal Bags Seva Logistics</p>
-                  <p className="text-xs text-gray-400">Official guide document</p>
+                  <p className="font-semibold text-gray-800 text-base">Meal Bags Seva Logistics</p>
+                  <p className="text-sm text-gray-400">Official guide document</p>
                 </div>
-                <a
-                  href="/logistics.pdf"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs bg-orange-500 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-orange-600 transition-colors"
-                >
+                <a href="/logistics.pdf" target="_blank" rel="noopener noreferrer" className="text-sm bg-orange-500 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-orange-600 transition-colors">
                   Open ↗
                 </a>
               </div>
-              <iframe
-                src="/logistics.pdf"
-                className="w-full"
-                style={{ height: '75vh', display: 'block' }}
-                title="Meal Bag Seva Logistics"
-              />
+              <iframe src="/logistics.pdf" className="w-full" style={{ height: '75vh', display: 'block' }} title="Meal Bag Seva Logistics" />
             </div>
-            <p className="text-xs text-gray-400 text-center">
+            <p className="text-sm text-gray-400 text-center">
               Tap &quot;Open ↗&quot; to view fullscreen or save to your device
             </p>
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+export default function LogisticsPage() {
+  return (
+    <Suspense>
+      <LogisticsPageInner />
+    </Suspense>
   );
 }

@@ -5,7 +5,8 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   getEvents, getSignups, addSignup, removeSignup, getSlotsUsed,
-  SevaEvent, Signup, ItemType, itemTypeLabel, COORDINATOR_PHONE,
+  getCoordinator, seedDefaultCoordinator,
+  SevaEvent, Signup, ItemType, itemTypeLabel, CoordinatorProfile,
 } from '@/lib/store';
 import { generateIcs, formatTime, ReminderOffset } from '@/lib/ics';
 
@@ -24,8 +25,10 @@ type SignupResult = { signup: Signup; event: SevaEvent };
 
 function MemberPageInner() {
   const searchParams = useSearchParams();
-  const monthFilter = searchParams.get('month'); // e.g. "2026-04"
+  const coordId = searchParams.get('coord') ?? 'seva2024';
+  const monthFilter = searchParams.get('month');
 
+  const [coord, setCoord] = useState<CoordinatorProfile | null>(null);
   const [events, setEvents] = useState<SevaEvent[]>([]);
   const [signups, setSignups] = useState<Signup[]>([]);
   const [showForm, setShowForm] = useState<string | null>(null);
@@ -39,17 +42,16 @@ function MemberPageInner() {
   const [mySignups, setMySignups] = useState<Signup[] | null>(null);
 
   useEffect(() => {
-    setEvents(getEvents().sort((a, b) => a.date.localeCompare(b.date)));
-    setSignups(getSignups());
-  }, []);
+    seedDefaultCoordinator();
+    const profile = getCoordinator(coordId);
+    setCoord(profile ?? null);
+    setEvents(getEvents(coordId).sort((a, b) => a.date.localeCompare(b.date)));
+    setSignups(getSignups(coordId));
+  }, [coordId]);
 
   const today = new Date().toISOString().slice(0, 10);
-
-  // Filter by month param if present, otherwise show all upcoming
   let visibleEvents = events.filter(e => e.date >= today);
-  if (monthFilter) {
-    visibleEvents = visibleEvents.filter(e => e.date.startsWith(monthFilter));
-  }
+  if (monthFilter) visibleEvents = visibleEvents.filter(e => e.date.startsWith(monthFilter));
 
   function getSlotInfo(event: SevaEvent) {
     const { mealBagUsed, nutritionalUsed } = getSlotsUsed(event.id, signups);
@@ -72,35 +74,32 @@ function MemberPageInner() {
     if (!name.trim() || !phone.trim()) return;
     const itemType = checkboxesToItemType();
     if (!itemType) return;
-    const signup = addSignup({ eventId: event.id, memberName: name.trim(), memberContact: phone.replace(/\D/g, ''), itemType });
-    const updated = getSignups();
-    setSignups(updated);
+    const signup = addSignup({ eventId: event.id, memberName: name.trim(), memberContact: phone.replace(/\D/g, ''), itemType }, coordId);
+    setSignups(getSignups(coordId));
     setJustSignedUp({ signup, event });
     setShowForm(null);
-    setName('');
-    setPhone('');
-    setWantsMeals(true);
-    setWantsNutritional(false);
+    setName(''); setPhone(''); setWantsMeals(true); setWantsNutritional(false);
   }
 
   function handleFindDeliveries() {
     const cleaned = deliverPhone.replace(/\D/g, '');
     if (!cleaned) return;
-    const sups = getSignups().filter(
+    const sups = getSignups(coordId).filter(
       s => s.memberContact.replace(/\D/g, '') === cleaned && s.status === 'pending'
     );
     setMySignups(sups);
   }
 
   function handleCancelSignup(signup: Signup, event: SevaEvent | undefined) {
-    removeSignup(signup.id);
+    removeSignup(signup.id, coordId);
     setMySignups(prev => prev ? prev.filter(s => s.id !== signup.id) : prev);
-    // Send WhatsApp notification to coordinator
-    const dateStr = event ? formatDate(event.date) : 'an event';
-    const msg = encodeURIComponent(
-      `Hi Anupama, ${signup.memberName} has cancelled their signup for ${dateStr} (${itemTypeLabel(signup.itemType)}). Please update the list.`
-    );
-    window.open(`https://wa.me/${COORDINATOR_PHONE}?text=${msg}`, '_blank');
+    if (coord?.phone) {
+      const dateStr = event ? formatDate(event.date) : 'an event';
+      const msg = encodeURIComponent(
+        `Hi, ${signup.memberName} has cancelled their signup for ${dateStr} (${itemTypeLabel(signup.itemType)}). Please update the list.`
+      );
+      window.open(`https://wa.me/${coord.phone}?text=${msg}`, '_blank');
+    }
   }
 
   function handleSetReminder(offset: ReminderOffset) {
@@ -116,7 +115,7 @@ function MemberPageInner() {
       <header className="bg-white border-b border-orange-100 px-4 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm">
         <Link href="/" className="text-orange-500 text-base font-medium">← Home</Link>
         <h1 className="font-bold text-gray-800 text-lg">Seva Track</h1>
-        <Link href="/logistics" className="text-orange-500 text-base font-medium">Guide</Link>
+        <Link href={`/logistics?coord=${coordId}`} className="text-orange-500 text-base font-medium">Guide</Link>
       </header>
 
       {monthFilter && (
@@ -146,7 +145,6 @@ function MemberPageInner() {
         {/* ── SIGN UP VIEW ── */}
         {view === 'signup' && (
           <>
-            {/* Post-signup: reminder picker */}
             {justSignedUp && (
               <div className="mt-2 space-y-3">
                 <div className="bg-green-50 border border-green-200 rounded-2xl p-4">
@@ -184,10 +182,7 @@ function MemberPageInner() {
                       </button>
                     ))}
                   </div>
-                  <button
-                    onClick={() => setJustSignedUp(null)}
-                    className="w-full mt-3 text-base text-gray-400 hover:text-gray-600 py-2"
-                  >
+                  <button onClick={() => setJustSignedUp(null)} className="w-full mt-3 text-base text-gray-400 hover:text-gray-600 py-2">
                     Skip, no reminder
                   </button>
                 </div>
@@ -196,20 +191,34 @@ function MemberPageInner() {
 
             {!justSignedUp && (
               <>
-                {/* Drop-off reminder banner */}
-                <div className="mt-4 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-center gap-3">
-                  <span className="text-2xl flex-shrink-0">📦</span>
-                  <div>
-                    <p className="text-sm font-bold text-amber-800">Drop-Off Reminder</p>
-                    <p className="text-sm text-amber-700">The day before delivery · time and location listed per date below</p>
+                {/* Drop-off banner with coordinator contact */}
+                <div className="mt-4 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+                  <div className="flex items-start gap-3 mb-2">
+                    <span className="text-2xl flex-shrink-0">📦</span>
+                    <div>
+                      <p className="text-sm font-bold text-amber-800">Drop-Off Reminder</p>
+                      <p className="text-sm text-amber-700">The day before delivery · time and address shown per date below</p>
+                    </div>
                   </div>
+                  {coord?.phone && (
+                    <div className="flex gap-2 mt-2">
+                      <a href={`tel:${coord.phone}`}
+                        className="flex-1 flex items-center justify-center gap-1.5 bg-white border border-amber-200 text-amber-800 text-sm font-semibold py-2 rounded-xl hover:bg-amber-100 transition-colors">
+                        📞 Call Coordinator
+                      </a>
+                      <a href={`https://wa.me/${coord.phone}`} target="_blank" rel="noopener noreferrer"
+                        className="flex-1 flex items-center justify-center gap-1.5 bg-green-500 text-white text-sm font-semibold py-2 rounded-xl hover:bg-green-600 transition-colors">
+                        💬 WhatsApp
+                      </a>
+                    </div>
+                  )}
                 </div>
 
                 {visibleEvents.length === 0 ? (
                   <div className="text-center py-16 text-gray-400">
                     <div className="text-5xl mb-3">📅</div>
                     <p className="font-medium text-lg">No upcoming dates yet</p>
-                    <p className="text-base mt-1">Check back when the coordinator posts new dates</p>
+                    <p className="text-base mt-1">Check back when your coordinator posts new dates</p>
                   </div>
                 ) : (
                   <div className="space-y-3 mt-4">
@@ -228,15 +237,9 @@ function MemberPageInner() {
                           <div className="flex items-start justify-between mb-2">
                             <div>
                               <p className="font-semibold text-gray-800 text-base">{formatDate(event.date)}</p>
-                              <p className="text-sm text-gray-500 mt-0.5">
-                                🕕 Drop off: {formatTime(event.dropOffStart)} – {formatTime(event.dropOffEnd)}
-                              </p>
-                              <p className="text-sm text-gray-500 mt-0.5">
-                                📍 {event.dropOffLocation}
-                              </p>
-                              {event.note && (
-                                <p className="text-sm text-orange-600 font-medium mt-0.5">📌 {event.note}</p>
-                              )}
+                              <p className="text-sm text-gray-500 mt-0.5">🕕 Drop off: {formatTime(event.dropOffStart)} – {formatTime(event.dropOffEnd)}</p>
+                              <p className="text-sm text-gray-500 mt-0.5">📍 {event.dropOffLocation}</p>
+                              {event.note && <p className="text-sm text-orange-600 font-medium mt-0.5">📌 {event.note}</p>}
                             </div>
                             {isFull ? (
                               <span className="text-sm bg-red-100 text-red-600 px-2 py-1 rounded-full font-medium">Full</span>
@@ -247,7 +250,6 @@ function MemberPageInner() {
                             )}
                           </div>
 
-                          {/* Slot bars */}
                           <div className="space-y-1.5 mb-3">
                             <SlotBar label="Meal Bags" used={slots.mealBagUsed} total={event.mealBagSlots} />
                             <SlotBar label="Nutritional" used={slots.nutritionalUsed} total={event.nutritionalSlots} />
@@ -307,10 +309,7 @@ function MemberPageInner() {
                   onKeyDown={e => e.key === 'Enter' && handleFindDeliveries()}
                   className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400"
                 />
-                <button
-                  onClick={handleFindDeliveries}
-                  className="bg-orange-500 text-white px-5 py-3 rounded-xl text-base font-semibold hover:bg-orange-600 transition-colors"
-                >
+                <button onClick={handleFindDeliveries} className="bg-orange-500 text-white px-5 py-3 rounded-xl text-base font-semibold hover:bg-orange-600 transition-colors">
                   Find
                 </button>
               </div>
@@ -333,20 +332,16 @@ function MemberPageInner() {
                     <div key={signup.id} className="bg-white rounded-2xl p-4 shadow-sm border border-orange-100">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="font-semibold text-gray-800 text-base">
-                            {event ? formatDate(event.date) : 'Unknown date'}
-                          </p>
-                          <p className="text-base text-orange-600 mt-0.5">
-                            {itemTypeLabel(signup.itemType)}
-                          </p>
+                          <p className="font-semibold text-gray-800 text-base">{event ? formatDate(event.date) : 'Unknown date'}</p>
+                          <p className="text-base text-orange-600 mt-0.5">{itemTypeLabel(signup.itemType)}</p>
                         </div>
-                        <Link href={`/member/deliver/${signup.id}`} className="bg-green-500 text-white text-base font-semibold px-4 py-2.5 rounded-xl hover:bg-green-600">
+                        <Link href={`/member/deliver/${signup.id}?coord=${coordId}`} className="bg-green-500 text-white text-base font-semibold px-4 py-2.5 rounded-xl hover:bg-green-600">
                           Deliver →
                         </Link>
                       </div>
                       <button
                         onClick={() => {
-                          if (!confirm('Cancel your signup for this date? The coordinator will be notified via WhatsApp.')) return;
+                          if (!confirm('Cancel your signup? Your coordinator will be notified via WhatsApp.')) return;
                           handleCancelSignup(signup, event);
                         }}
                         className="mt-3 w-full text-sm text-red-400 hover:text-red-600 py-2 border border-gray-100 rounded-xl hover:bg-red-50 transition-colors"
@@ -373,8 +368,6 @@ export default function MemberPage() {
   );
 }
 
-// ── Sub-components ──
-
 function SlotBar({ label, used, total }: { label: string; used: number; total: number }) {
   const pct = total > 0 ? (used / total) * 100 : 0;
   const avail = total - used;
@@ -382,10 +375,7 @@ function SlotBar({ label, used, total }: { label: string; used: number; total: n
     <div className="flex items-center gap-2">
       <p className="text-sm text-gray-500 w-22 flex-shrink-0">{label}</p>
       <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all ${pct >= 100 ? 'bg-red-400' : pct >= 70 ? 'bg-amber-400' : 'bg-green-400'}`}
-          style={{ width: `${pct}%` }}
-        />
+        <div className={`h-full rounded-full transition-all ${pct >= 100 ? 'bg-red-400' : pct >= 70 ? 'bg-amber-400' : 'bg-green-400'}`} style={{ width: `${pct}%` }} />
       </div>
       <p className={`text-sm font-medium w-16 text-right flex-shrink-0 ${avail === 0 ? 'text-red-500' : 'text-gray-500'}`}>
         {avail === 0 ? 'Full' : `${avail}/${total} left`}
@@ -414,36 +404,17 @@ function SignupForm({
 
   return (
     <div className="space-y-3 mt-1">
-      <input
-        type="text"
-        placeholder="Your full name *"
-        value={name}
-        onChange={e => setName(e.target.value)}
-        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400"
-      />
-      <input
-        type="tel"
-        inputMode="numeric"
-        placeholder="Phone number * (for lookup)"
-        value={phone}
-        onChange={e => setPhone(e.target.value)}
-        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400"
-      />
+      <input type="text" placeholder="Your full name *" value={name} onChange={e => setName(e.target.value)}
+        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400" />
+      <input type="tel" inputMode="numeric" placeholder="Phone number * (for lookup)" value={phone} onChange={e => setPhone(e.target.value)}
+        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400" />
       <div className="space-y-2">
         <p className="text-sm text-gray-500 font-medium">What will you bring? (select one or both)</p>
-
-        {/* Meal Bags checkbox */}
         <label className={`flex items-center gap-3 p-3.5 rounded-xl border-2 transition-colors cursor-pointer ${
           mealsDisabled ? 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'
             : wantsMeals ? 'border-orange-400 bg-orange-50' : 'border-gray-200 bg-gray-50'
         }`}>
-          <input
-            type="checkbox"
-            checked={wantsMeals}
-            disabled={mealsDisabled}
-            onChange={e => !mealsDisabled && setWantsMeals(e.target.checked)}
-            className="w-5 h-5 accent-orange-500"
-          />
+          <input type="checkbox" checked={wantsMeals} disabled={mealsDisabled} onChange={e => !mealsDisabled && setWantsMeals(e.target.checked)} className="w-5 h-5 accent-orange-500" />
           <span className="text-2xl">🛍️</span>
           <div>
             <p className="text-base font-semibold text-gray-700">25 Meal Bags</p>
@@ -452,19 +423,11 @@ function SignupForm({
             </p>
           </div>
         </label>
-
-        {/* Nutritional checkbox */}
         <label className={`flex items-center gap-3 p-3.5 rounded-xl border-2 transition-colors cursor-pointer ${
           nutritionalDisabled ? 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'
             : wantsNutritional ? 'border-orange-400 bg-orange-50' : 'border-gray-200 bg-gray-50'
         }`}>
-          <input
-            type="checkbox"
-            checked={wantsNutritional}
-            disabled={nutritionalDisabled}
-            onChange={e => !nutritionalDisabled && setWantsNutritional(e.target.checked)}
-            className="w-5 h-5 accent-orange-500"
-          />
+          <input type="checkbox" checked={wantsNutritional} disabled={nutritionalDisabled} onChange={e => !nutritionalDisabled && setWantsNutritional(e.target.checked)} className="w-5 h-5 accent-orange-500" />
           <span className="text-2xl">🥗</span>
           <div>
             <p className="text-base font-semibold text-gray-700">Nutritional Items</p>
@@ -473,21 +436,11 @@ function SignupForm({
             </p>
           </div>
         </label>
-
         {neitherSelected && <p className="text-sm text-red-500 px-1">Please select at least one option</p>}
       </div>
-
       <div className="flex gap-2">
-        <button onClick={onCancel} className="flex-1 py-3 rounded-xl border border-gray-200 text-base text-gray-500">
-          Cancel
-        </button>
-        <button
-          onClick={onConfirm}
-          disabled={!canConfirm}
-          className="flex-1 py-3 rounded-xl bg-orange-500 text-white text-base font-semibold disabled:opacity-40 hover:bg-orange-600 transition-colors"
-        >
-          Confirm
-        </button>
+        <button onClick={onCancel} className="flex-1 py-3 rounded-xl border border-gray-200 text-base text-gray-500">Cancel</button>
+        <button onClick={onConfirm} disabled={!canConfirm} className="flex-1 py-3 rounded-xl bg-orange-500 text-white text-base font-semibold disabled:opacity-40 hover:bg-orange-600 transition-colors">Confirm</button>
       </div>
     </div>
   );
