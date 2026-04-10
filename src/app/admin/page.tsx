@@ -1,30 +1,31 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import {
-  getCoordinators, addCoordinator, findCoordinatorByPassword,
-  seedDefaultCoordinator, DEFAULT_LOCATION, DEFAULT_PHONE,
-} from '@/lib/store';
+import { findCoordinatorByPassword, createCoordinator, DEFAULT_ADDRESS } from '@/lib/db';
 
 export default function AdminLogin() {
   const [mode, setMode] = useState<'login' | 'register'>('login');
+
+  // Login
   const [password, setPassword] = useState('');
+
+  // Register
   const [regName, setRegName] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regPhone, setRegPhone] = useState('');
   const [regAddress, setRegAddress] = useState('');
+
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  useEffect(() => {
-    // Seed demo coordinator on first load
-    seedDefaultCoordinator();
-  }, []);
-
-  function handleLogin() {
-    const coord = findCoordinatorByPassword(password.trim());
+  async function handleLogin() {
+    if (!password.trim()) return;
+    setLoading(true); setError('');
+    const coord = await findCoordinatorByPassword(password.trim());
+    setLoading(false);
     if (coord) {
       sessionStorage.setItem('seva_admin', coord.id);
       router.push('/admin/dashboard');
@@ -33,22 +34,24 @@ export default function AdminLogin() {
     }
   }
 
-  function handleRegister() {
-    if (!regName.trim()) { setError('Please enter your name or chapter name.'); return; }
-    if (regPassword.length < 4) { setError('Password must be at least 4 characters.'); return; }
-    const coords = getCoordinators();
-    if (coords.some(c => c.password === regPassword)) {
-      setError('That password is already in use. Choose a different one.');
-      return;
+  async function handleRegister() {
+    if (!regName.trim())       { setError('Enter your name or chapter name.'); return; }
+    if (regPassword.length < 4){ setError('Password must be at least 4 characters.'); return; }
+    setLoading(true); setError('');
+    try {
+      const coord = await createCoordinator({
+        name:     regName.trim(),
+        password: regPassword,
+        phone:    regPhone.replace(/\D/g, ''),
+        address:  regAddress.trim() || DEFAULT_ADDRESS,
+      });
+      sessionStorage.setItem('seva_admin', coord.id);
+      router.push('/admin/dashboard');
+    } catch {
+      setError('Could not create account. Try a different password.');
+    } finally {
+      setLoading(false);
     }
-    const coord = addCoordinator({
-      name: regName.trim(),
-      password: regPassword,
-      phone: regPhone.replace(/\D/g, '') || DEFAULT_PHONE,
-      address: regAddress.trim() || DEFAULT_LOCATION,
-    });
-    sessionStorage.setItem('seva_admin', coord.id);
-    router.push('/admin/dashboard');
   }
 
   return (
@@ -62,9 +65,7 @@ export default function AdminLogin() {
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="bg-white rounded-3xl p-8 shadow-sm border border-orange-100 w-full max-w-sm">
           <div className="text-center mb-6">
-            <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">
-              🔐
-            </div>
+            <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">🔐</div>
             <h2 className="text-xl font-bold text-gray-800">
               {mode === 'login' ? 'Coordinator Login' : 'Create Your Account'}
             </h2>
@@ -81,64 +82,37 @@ export default function AdminLogin() {
                 value={password}
                 onChange={e => { setPassword(e.target.value); setError(''); }}
                 onKeyDown={e => e.key === 'Enter' && handleLogin()}
-                className={`w-full border rounded-xl px-4 py-3 text-base focus:outline-none transition-colors ${
-                  error ? 'border-red-400 bg-red-50' : 'border-gray-200 focus:border-orange-400'
-                }`}
+                className={`w-full border rounded-xl px-4 py-3 text-base focus:outline-none transition-colors ${error ? 'border-red-400 bg-red-50' : 'border-gray-200 focus:border-orange-400'}`}
               />
               {error && <p className="text-red-500 text-sm">{error}</p>}
-              <button
-                onClick={handleLogin}
-                className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-semibold text-base transition-colors"
-              >
-                Login
+              <button onClick={handleLogin} disabled={loading}
+                className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white py-3 rounded-xl font-semibold text-base transition-colors">
+                {loading ? 'Logging in…' : 'Login'}
               </button>
               <p className="text-center text-sm text-gray-400 pt-1">
                 Demo password:{' '}
-                <button
-                  onClick={() => { setPassword('seva2024'); setError(''); }}
-                  className="font-mono font-medium text-orange-500 underline"
-                >
-                  seva2024
-                </button>
+                <button onClick={() => { setPassword('seva2024'); setError(''); }}
+                  className="font-mono font-medium text-orange-500 underline">seva2024</button>
               </p>
             </div>
           ) : (
             <div className="space-y-3">
-              <input
-                type="text"
-                placeholder="Your name or chapter name *"
-                value={regName}
-                onChange={e => { setRegName(e.target.value); setError(''); }}
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400"
-              />
-              <input
-                type="password"
-                placeholder="Choose a password *"
-                value={regPassword}
-                onChange={e => { setRegPassword(e.target.value); setError(''); }}
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400"
-              />
-              <input
-                type="tel"
-                inputMode="numeric"
-                placeholder="Your phone number (for member notifications)"
-                value={regPhone}
-                onChange={e => setRegPhone(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400"
-              />
-              <input
-                type="text"
-                placeholder="Default drop-off address"
-                value={regAddress}
-                onChange={e => setRegAddress(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400"
-              />
+              <input type="text" placeholder="Your name or chapter name *"
+                value={regName} onChange={e => { setRegName(e.target.value); setError(''); }}
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400" />
+              <input type="password" placeholder="Choose a password *"
+                value={regPassword} onChange={e => { setRegPassword(e.target.value); setError(''); }}
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400" />
+              <input type="tel" inputMode="numeric" placeholder="Your phone number"
+                value={regPhone} onChange={e => setRegPhone(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400" />
+              <input type="text" placeholder="Default drop-off address"
+                value={regAddress} onChange={e => setRegAddress(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400" />
               {error && <p className="text-red-500 text-sm">{error}</p>}
-              <button
-                onClick={handleRegister}
-                className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-semibold text-base transition-colors"
-              >
-                Create Account
+              <button onClick={handleRegister} disabled={loading}
+                className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white py-3 rounded-xl font-semibold text-base transition-colors">
+                {loading ? 'Creating…' : 'Create Account'}
               </button>
             </div>
           )}
@@ -147,16 +121,12 @@ export default function AdminLogin() {
             {mode === 'login' ? (
               <p className="text-sm text-gray-400">
                 New coordinator?{' '}
-                <button onClick={() => { setMode('register'); setError(''); }} className="text-orange-500 font-semibold">
-                  Create account
-                </button>
+                <button onClick={() => { setMode('register'); setError(''); }} className="text-orange-500 font-semibold">Create account</button>
               </p>
             ) : (
               <p className="text-sm text-gray-400">
                 Already have an account?{' '}
-                <button onClick={() => { setMode('login'); setError(''); }} className="text-orange-500 font-semibold">
-                  Login
-                </button>
+                <button onClick={() => { setMode('login'); setError(''); }} className="text-orange-500 font-semibold">Login</button>
               </p>
             )}
           </div>
