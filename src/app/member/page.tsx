@@ -5,9 +5,9 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   getEvents, getSignups, addSignup, removeSignup, getSlotsUsed,
-  getCoordinator, seedDefaultCoordinator,
+  getCoordinator, isSignupOpen, getSignupWindow,
   SevaEvent, Signup, ItemType, itemTypeLabel, CoordinatorProfile,
-} from '@/lib/store';
+} from '@/lib/db';
 import { generateIcs, formatTime, ReminderOffset } from '@/lib/ics';
 
 const REMINDERS: { value: ReminderOffset; label: string; icon: string }[] = [
@@ -31,33 +31,48 @@ function MemberPageInner() {
   const [coord, setCoord] = useState<CoordinatorProfile | null>(null);
   const [events, setEvents] = useState<SevaEvent[]>([]);
   const [signups, setSignups] = useState<Signup[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [wantsMeals, setWantsMeals] = useState(true);
   const [wantsNutritional, setWantsNutritional] = useState(false);
   const [justSignedUp, setJustSignedUp] = useState<SignupResult | null>(null);
+  const [signupLoading, setSignupLoading] = useState(false);
   const [view, setView] = useState<'signup' | 'deliver'>('signup');
   const [deliverPhone, setDeliverPhone] = useState('');
   const [mySignups, setMySignups] = useState<Signup[] | null>(null);
+  const [findLoading, setFindLoading] = useState(false);
 
   useEffect(() => {
-    seedDefaultCoordinator();
-    const profile = getCoordinator(coordId);
-    setCoord(profile ?? null);
-    setEvents(getEvents(coordId).sort((a, b) => a.date.localeCompare(b.date)));
-    setSignups(getSignups(coordId));
+    async function load() {
+      setLoading(true);
+      const [profile, evs, sups] = await Promise.all([
+        getCoordinator(coordId),
+        getEvents(coordId),
+        getSignups(coordId),
+      ]);
+      setCoord(profile ?? null);
+      setEvents(evs.sort((a, b) => a.date.localeCompare(b.date)));
+      setSignups(sups);
+      setLoading(false);
+    }
+    load();
   }, [coordId]);
 
   const today = new Date().toISOString().slice(0, 10);
   let visibleEvents = events.filter(e => e.date >= today);
   if (monthFilter) visibleEvents = visibleEvents.filter(e => e.date.startsWith(monthFilter));
 
+  // Signup window
+  const signupOpen = coord ? isSignupOpen(coord) : false;
+  const signupWindow = coord ? getSignupWindow(coord) : null;
+
   function getSlotInfo(event: SevaEvent) {
     const { mealBagUsed, nutritionalUsed } = getSlotsUsed(event.id, signups);
     return {
-      mealBagAvail: Math.max(0, event.mealBagSlots - mealBagUsed),
-      nutritionalAvail: Math.max(0, event.nutritionalSlots - nutritionalUsed),
+      mealBagAvail: Math.max(0, event.meal_bag_slots - mealBagUsed),
+      nutritionalAvail: Math.max(0, event.nutritional_slots - nutritionalUsed),
       mealBagUsed,
       nutritionalUsed,
     };
@@ -70,33 +85,50 @@ function MemberPageInner() {
     return null;
   }
 
-  function handleSignup(event: SevaEvent) {
+  async function handleSignup(event: SevaEvent) {
     if (!name.trim() || !phone.trim()) return;
     const itemType = checkboxesToItemType();
     if (!itemType) return;
-    const signup = addSignup({ eventId: event.id, memberName: name.trim(), memberContact: phone.replace(/\D/g, ''), itemType }, coordId);
-    setSignups(getSignups(coordId));
-    setJustSignedUp({ signup, event });
-    setShowForm(null);
-    setName(''); setPhone(''); setWantsMeals(true); setWantsNutritional(false);
+    setSignupLoading(true);
+    try {
+      const signup = await addSignup({
+        event_id: event.id,
+        coord_id: coordId,
+        member_name: name.trim(),
+        member_phone: phone.replace(/\D/g, ''),
+        item_type: itemType,
+      });
+      const sups = await getSignups(coordId);
+      setSignups(sups);
+      setJustSignedUp({ signup, event });
+      setShowForm(null);
+      setName(''); setPhone(''); setWantsMeals(true); setWantsNutritional(false);
+    } catch {
+      alert('Could not sign up — you may already be signed up for this date.');
+    } finally {
+      setSignupLoading(false);
+    }
   }
 
-  function handleFindDeliveries() {
+  async function handleFindDeliveries() {
     const cleaned = deliverPhone.replace(/\D/g, '');
     if (!cleaned) return;
-    const sups = getSignups(coordId).filter(
-      s => s.memberContact.replace(/\D/g, '') === cleaned && s.status === 'pending'
+    setFindLoading(true);
+    const allSignups = await getSignups(coordId);
+    const sups = allSignups.filter(
+      s => s.member_phone.replace(/\D/g, '') === cleaned && s.status === 'pending'
     );
     setMySignups(sups);
+    setFindLoading(false);
   }
 
-  function handleCancelSignup(signup: Signup, event: SevaEvent | undefined) {
-    removeSignup(signup.id, coordId);
+  async function handleCancelSignup(signup: Signup, event: SevaEvent | undefined) {
+    await removeSignup(signup.id);
     setMySignups(prev => prev ? prev.filter(s => s.id !== signup.id) : prev);
     if (coord?.phone) {
       const dateStr = event ? formatDate(event.date) : 'an event';
       const msg = encodeURIComponent(
-        `Hi, ${signup.memberName} has cancelled their signup for ${dateStr} (${itemTypeLabel(signup.itemType)}). Please update the list.`
+        `Hi, ${signup.member_name} has cancelled their signup for ${dateStr} (${itemTypeLabel(signup.item_type)}). Please update the list.`
       );
       window.open(`https://wa.me/${coord.phone}?text=${msg}`, '_blank');
     }
@@ -105,10 +137,21 @@ function MemberPageInner() {
   function handleSetReminder(offset: ReminderOffset) {
     if (!justSignedUp) return;
     const { signup, event } = justSignedUp;
-    generateIcs(event.date, signup.memberName, itemTypeLabel(signup.itemType), event.dropOffStart, event.dropOffEnd, offset);
+    generateIcs(event.date, signup.member_name, itemTypeLabel(signup.item_type), event.drop_off_start, event.drop_off_end, offset);
   }
 
-  const signedUpEventIds = new Set(signups.map(s => s.eventId));
+  const signedUpEventIds = new Set(signups.map(s => s.event_id));
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-orange-50 flex items-center justify-center">
+        <div className="text-center text-gray-400">
+          <div className="text-4xl mb-3">🍱</div>
+          <p className="text-base">Loading…</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-orange-50">
@@ -153,13 +196,13 @@ function MemberPageInner() {
                     <p className="font-bold text-green-800 text-lg">You&apos;re signed up!</p>
                   </div>
                   <p className="text-green-700 text-base">
-                    {formatDate(justSignedUp.event.date)} · {itemTypeLabel(justSignedUp.signup.itemType)}
+                    {formatDate(justSignedUp.event.date)} · {itemTypeLabel(justSignedUp.signup.item_type)}
                   </p>
                   <p className="text-green-600 text-sm mt-1">
-                    📍 Drop off at: {justSignedUp.event.dropOffLocation}
+                    📍 Drop off at: {justSignedUp.event.drop_off_location}
                   </p>
                   <p className="text-green-600 text-sm mt-0.5">
-                    🕕 {formatTime(justSignedUp.event.dropOffStart)} – {formatTime(justSignedUp.event.dropOffEnd)} · the day before delivery
+                    🕕 {formatTime(justSignedUp.event.drop_off_start)} – {formatTime(justSignedUp.event.drop_off_end)} · the day before delivery
                   </p>
                 </div>
 
@@ -191,6 +234,17 @@ function MemberPageInner() {
 
             {!justSignedUp && (
               <>
+                {/* Signup window banner */}
+                {coord && !signupOpen && signupWindow && (
+                  <div className="mt-4 bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3">
+                    <p className="font-semibold text-blue-800 text-base">🗓 Sign-ups not open yet</p>
+                    <p className="text-sm text-blue-600 mt-0.5">
+                      Opens {signupWindow.open.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })} –{' '}
+                      closes {signupWindow.close.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}
+                    </p>
+                  </div>
+                )}
+
                 {/* Drop-off banner with coordinator contact */}
                 <div className="mt-4 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
                   <div className="flex items-start gap-3 mb-2">
@@ -227,8 +281,8 @@ function MemberPageInner() {
                     {visibleEvents.map(event => {
                       const slots = getSlotInfo(event);
                       const alreadyIn = signedUpEventIds.has(event.id);
-                      const mySignup = signups.find(s => s.eventId === event.id);
-                      const totalSlots = event.mealBagSlots + event.nutritionalSlots;
+                      const mySignup = signups.find(s => s.event_id === event.id);
+                      const totalSlots = event.meal_bag_slots + event.nutritional_slots;
                       const totalUsed = slots.mealBagUsed + slots.nutritionalUsed;
                       const isFull = slots.mealBagAvail === 0 && slots.nutritionalAvail === 0;
 
@@ -237,8 +291,8 @@ function MemberPageInner() {
                           <div className="flex items-start justify-between mb-2">
                             <div>
                               <p className="font-semibold text-gray-800 text-base">{formatDate(event.date)}</p>
-                              <p className="text-sm text-gray-500 mt-0.5">🕕 Drop off: {formatTime(event.dropOffStart)} – {formatTime(event.dropOffEnd)}</p>
-                              <p className="text-sm text-gray-500 mt-0.5">📍 {event.dropOffLocation}</p>
+                              <p className="text-sm text-gray-500 mt-0.5">🕕 Drop off: {formatTime(event.drop_off_start)} – {formatTime(event.drop_off_end)}</p>
+                              <p className="text-sm text-gray-500 mt-0.5">📍 {event.drop_off_location}</p>
                               {event.note && <p className="text-sm text-orange-600 font-medium mt-0.5">📌 {event.note}</p>}
                             </div>
                             {isFull ? (
@@ -251,8 +305,8 @@ function MemberPageInner() {
                           </div>
 
                           <div className="space-y-1.5 mb-3">
-                            <SlotBar label="Meal Bags" used={slots.mealBagUsed} total={event.mealBagSlots} />
-                            <SlotBar label="Nutritional" used={slots.nutritionalUsed} total={event.nutritionalSlots} />
+                            <SlotBar label="Meal Bags" used={slots.mealBagUsed} total={event.meal_bag_slots} />
+                            <SlotBar label="Nutritional" used={slots.nutritionalUsed} total={event.nutritional_slots} />
                           </div>
 
                           {alreadyIn ? (
@@ -260,11 +314,13 @@ function MemberPageInner() {
                               <span className="text-green-500">✓</span>
                               <div>
                                 <p className="text-green-700 font-medium text-base">You&apos;re signed up!</p>
-                                {mySignup && <p className="text-green-600 text-sm">{itemTypeLabel(mySignup.itemType)}</p>}
+                                {mySignup && <p className="text-green-600 text-sm">{itemTypeLabel(mySignup.item_type)}</p>}
                               </div>
                             </div>
                           ) : isFull ? (
                             <div className="text-center py-2 text-base text-red-400 font-medium">All slots filled</div>
+                          ) : !signupOpen ? (
+                            <div className="text-center py-2 text-base text-blue-400 font-medium">Sign-ups not open yet</div>
                           ) : showForm === event.id ? (
                             <SignupForm
                               slots={slots}
@@ -272,6 +328,7 @@ function MemberPageInner() {
                               phone={phone} setPhone={setPhone}
                               wantsMeals={wantsMeals} setWantsMeals={setWantsMeals}
                               wantsNutritional={wantsNutritional} setWantsNutritional={setWantsNutritional}
+                              loading={signupLoading}
                               onConfirm={() => handleSignup(event)}
                               onCancel={() => { setShowForm(null); setName(''); setPhone(''); setWantsMeals(true); setWantsNutritional(false); }}
                             />
@@ -309,8 +366,8 @@ function MemberPageInner() {
                   onKeyDown={e => e.key === 'Enter' && handleFindDeliveries()}
                   className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400"
                 />
-                <button onClick={handleFindDeliveries} className="bg-orange-500 text-white px-5 py-3 rounded-xl text-base font-semibold hover:bg-orange-600 transition-colors">
-                  Find
+                <button onClick={handleFindDeliveries} disabled={findLoading} className="bg-orange-500 text-white px-5 py-3 rounded-xl text-base font-semibold hover:bg-orange-600 disabled:opacity-50 transition-colors">
+                  {findLoading ? '…' : 'Find'}
                 </button>
               </div>
             </div>
@@ -327,13 +384,13 @@ function MemberPageInner() {
               <div className="space-y-2">
                 <p className="text-sm text-gray-500 font-semibold uppercase tracking-wide px-1">Your Pending Deliveries</p>
                 {mySignups.map(signup => {
-                  const event = events.find(e => e.id === signup.eventId);
+                  const event = events.find(e => e.id === signup.event_id);
                   return (
                     <div key={signup.id} className="bg-white rounded-2xl p-4 shadow-sm border border-orange-100">
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="font-semibold text-gray-800 text-base">{event ? formatDate(event.date) : 'Unknown date'}</p>
-                          <p className="text-base text-orange-600 mt-0.5">{itemTypeLabel(signup.itemType)}</p>
+                          <p className="text-base text-orange-600 mt-0.5">{itemTypeLabel(signup.item_type)}</p>
                         </div>
                         <Link href={`/member/deliver/${signup.id}?coord=${coordId}`} className="bg-green-500 text-white text-base font-semibold px-4 py-2.5 rounded-xl hover:bg-green-600">
                           Deliver →
@@ -387,13 +444,14 @@ function SlotBar({ label, used, total }: { label: string; used: number; total: n
 function SignupForm({
   slots, name, setName, phone, setPhone,
   wantsMeals, setWantsMeals, wantsNutritional, setWantsNutritional,
-  onConfirm, onCancel,
+  loading, onConfirm, onCancel,
 }: {
   slots: { mealBagAvail: number; nutritionalAvail: number };
   name: string; setName: (v: string) => void;
   phone: string; setPhone: (v: string) => void;
   wantsMeals: boolean; setWantsMeals: (v: boolean) => void;
   wantsNutritional: boolean; setWantsNutritional: (v: boolean) => void;
+  loading: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
@@ -440,7 +498,9 @@ function SignupForm({
       </div>
       <div className="flex gap-2">
         <button onClick={onCancel} className="flex-1 py-3 rounded-xl border border-gray-200 text-base text-gray-500">Cancel</button>
-        <button onClick={onConfirm} disabled={!canConfirm} className="flex-1 py-3 rounded-xl bg-orange-500 text-white text-base font-semibold disabled:opacity-40 hover:bg-orange-600 transition-colors">Confirm</button>
+        <button onClick={onConfirm} disabled={!canConfirm || loading} className="flex-1 py-3 rounded-xl bg-orange-500 text-white text-base font-semibold disabled:opacity-40 hover:bg-orange-600 transition-colors">
+          {loading ? 'Signing up…' : 'Confirm'}
+        </button>
       </div>
     </div>
   );

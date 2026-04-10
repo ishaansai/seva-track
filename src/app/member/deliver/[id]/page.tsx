@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { getSignups, getEvents, markDelivered, itemTypeLabel, seedDefaultCoordinator, Signup, SevaEvent } from '@/lib/store';
+import { getSignupById, getEvents, markDelivered, uploadDeliveryPhoto, itemTypeLabel, Signup, SevaEvent } from '@/lib/db';
 
 function formatDate(dateStr: string) {
   const d = new Date(dateStr + 'T00:00:00');
@@ -19,18 +19,22 @@ function DeliverPageInner() {
   const [event, setEvent] = useState<SevaEvent | null>(null);
   const [photo, setPhoto] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [notFound, setNotFound] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    seedDefaultCoordinator();
-    const s = getSignups(coordId).find(s => s.id === id);
-    if (s) {
+    async function load() {
+      const s = await getSignupById(id);
+      if (!s) { setNotFound(true); return; }
       setSignup(s);
       setDone(s.status === 'delivered');
-      if (s.deliveryPhotoUrl) setPhoto(s.deliveryPhotoUrl);
-      const e = getEvents(coordId).find(e => e.id === s.eventId);
+      if (s.delivery_photo_url) setPhoto(s.delivery_photo_url);
+      const evs = await getEvents(coordId);
+      const e = evs.find(e => e.id === s.event_id);
       if (e) setEvent(e);
     }
+    load();
   }, [id, coordId]);
 
   function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
@@ -41,20 +45,40 @@ function DeliverPageInner() {
     reader.readAsDataURL(file);
   }
 
-  function handleDeliver() {
+  async function handleDeliver() {
     if (!photo || !signup) return;
-    markDelivered(signup.id, photo, coordId);
-    setDone(true);
+    setUploading(true);
+    try {
+      const photoUrl = await uploadDeliveryPhoto(signup.id, photo);
+      await markDelivered(signup.id, photoUrl);
+      setDone(true);
+    } catch {
+      alert('Failed to upload photo. Please try again.');
+    } finally {
+      setUploading(false);
+    }
   }
 
   const backUrl = `/member?coord=${coordId}`;
+
+  if (notFound || (!signup && !uploading)) {
+    return (
+      <div className="min-h-screen bg-orange-50 flex items-center justify-center">
+        <div className="text-center text-gray-400">
+          <div className="text-4xl mb-3">🔍</div>
+          <p className="text-base">Signup not found</p>
+          <Link href={backUrl} className="text-orange-500 text-base mt-2 block">← Go back</Link>
+        </div>
+      </div>
+    );
+  }
 
   if (!signup) {
     return (
       <div className="min-h-screen bg-orange-50 flex items-center justify-center">
         <div className="text-center text-gray-400">
-          <p>Signup not found</p>
-          <Link href={backUrl} className="text-orange-500 text-base mt-2 block">← Go back</Link>
+          <div className="text-4xl mb-3">🍱</div>
+          <p className="text-base">Loading…</p>
         </div>
       </div>
     );
@@ -73,7 +97,7 @@ function DeliverPageInner() {
           <div className="text-center py-12">
             <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center text-4xl mx-auto mb-4">✅</div>
             <h2 className="text-2xl font-bold text-gray-800 mb-2">Delivered!</h2>
-            <p className="text-gray-500 mb-1">Thank you, {signup.memberName}!</p>
+            <p className="text-gray-500 mb-1">Thank you, {signup.member_name}!</p>
             <p className="text-gray-400 text-base">Your delivery has been logged</p>
             {photo && (
               <div className="mt-6 rounded-2xl overflow-hidden border border-green-200 max-w-xs mx-auto shadow-sm">
@@ -88,10 +112,10 @@ function DeliverPageInner() {
           <>
             <div className="bg-white rounded-2xl p-4 shadow-sm border border-orange-100">
               <p className="text-sm text-gray-400 mb-1 uppercase tracking-wide font-medium">Delivery for</p>
-              <p className="font-bold text-gray-800 text-lg">{signup.memberName}</p>
+              <p className="font-bold text-gray-800 text-lg">{signup.member_name}</p>
               {event && <p className="text-orange-600 font-medium mt-1 text-base">{formatDate(event.date)}</p>}
               <span className="inline-block mt-2 bg-orange-100 text-orange-700 text-sm px-3 py-1 rounded-full font-medium">
-                {itemTypeLabel(signup.itemType)}
+                {itemTypeLabel(signup.item_type)}
               </span>
             </div>
 
@@ -114,8 +138,9 @@ function DeliverPageInner() {
               <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={handlePhoto} className="hidden" />
             </div>
 
-            <button onClick={handleDeliver} disabled={!photo} className="w-full bg-green-500 hover:bg-green-600 disabled:opacity-40 text-white py-4 rounded-2xl font-bold text-lg shadow-md transition-all active:scale-95">
-              ✓ Mark as Delivered
+            <button onClick={handleDeliver} disabled={!photo || uploading}
+              className="w-full bg-green-500 hover:bg-green-600 disabled:opacity-40 text-white py-4 rounded-2xl font-bold text-lg shadow-md transition-all active:scale-95">
+              {uploading ? 'Uploading…' : '✓ Mark as Delivered'}
             </button>
           </>
         )}

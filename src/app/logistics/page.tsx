@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { getCoordinator, seedDefaultCoordinator, CoordinatorProfile } from '@/lib/store';
+import { getCoordinator, CoordinatorProfile } from '@/lib/db';
 
 const BAG_CONTENTS = [
   { icon: '🥪', label: 'PB&J Sandwich' },
@@ -43,8 +43,7 @@ function LogisticsPageInner() {
   const [coord, setCoord] = useState<CoordinatorProfile | null>(null);
 
   useEffect(() => {
-    seedDefaultCoordinator();
-    setCoord(getCoordinator(coordId) ?? null);
+    getCoordinator(coordId).then(p => setCoord(p ?? null));
   }, [coordId]);
 
   const mapsUrl = coord ? `https://maps.apple.com/?q=${encodeURIComponent(coord.address)}` : '';
@@ -72,7 +71,7 @@ function LogisticsPageInner() {
 
         {tab === 'guide' && (
           <>
-            {/* Coordinator contact — no number shown */}
+            {/* Coordinator contact */}
             {coord && (
               <div className="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden mt-2">
                 <div className="bg-orange-500 px-4 py-2.5">
