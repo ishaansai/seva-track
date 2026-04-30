@@ -12,7 +12,7 @@ export type DeliveryStatus = 'pending' | 'delivered';
 export interface CoordinatorProfile {
   id: string;
   name: string;
-  password: string;
+  email: string;
   phone: string;
   address: string;
   signup_open_day: number;       // day of month signups open (default 15)
@@ -95,17 +95,52 @@ export function isSignupOpen(coord: CoordinatorProfile): boolean {
   return now >= open && now <= close;
 }
 
-const DEFAULT_ADDRESS = '925 Roselma Pl, Pleasanton CA 94566';
-const DEFAULT_PHONE   = '9258904273';
+const DEFAULT_ADDRESS  = '925 Roselma Pl, Pleasanton CA 94566';
+const DEFAULT_PHONE    = '9258904273';
 const DEFAULT_COORD_ID = 'seva2024';
+
+// ─── Auth ────────────────────────────────────────────────────────────────────
+
+/** Sign in a coordinator with email + password via Supabase Auth. */
+export async function signInCoordinator(
+  email: string,
+  password: string,
+): Promise<CoordinatorProfile> {
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error || !data.user) throw new Error(error?.message ?? 'Login failed');
+  const coord = await getCoordinatorByUserId(data.user.id);
+  if (!coord) throw new Error('No coordinator account found for this login.');
+  return coord;
+}
+
+/** Sign out the current coordinator session. */
+export async function signOutCoordinator(): Promise<void> {
+  await supabase.auth.signOut();
+}
+
+/** Change the current coordinator's password via Supabase Auth. */
+export async function updateCoordinatorPassword(newPassword: string): Promise<void> {
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw new Error(error.message);
+}
 
 // ─── Coordinators ─────────────────────────────────────────────────────────────
 
 export async function getCoordinator(id: string): Promise<CoordinatorProfile | null> {
   const { data, error } = await supabase
     .from('coordinators')
-    .select('*')
+    .select('id,name,email,phone,address,signup_open_day,signup_open_override,signup_close_override')
     .eq('id', id)
+    .single();
+  if (error || !data) return null;
+  return data as CoordinatorProfile;
+}
+
+export async function getCoordinatorByUserId(userId: string): Promise<CoordinatorProfile | null> {
+  const { data, error } = await supabase
+    .from('coordinators')
+    .select('id,name,email,phone,address,signup_open_day,signup_open_override,signup_close_override')
+    .eq('user_id', userId)
     .single();
   if (error || !data) return null;
   return data as CoordinatorProfile;
@@ -115,27 +150,21 @@ export async function getDefaultCoordinator(): Promise<CoordinatorProfile | null
   return getCoordinator(DEFAULT_COORD_ID);
 }
 
-export async function findCoordinatorByPassword(password: string): Promise<CoordinatorProfile | null> {
-  const { data, error } = await supabase
-    .from('coordinators')
-    .select('*')
-    .eq('password', password)
-    .single();
-  if (error || !data) return null;
-  return data as CoordinatorProfile;
-}
-
-export async function createCoordinator(data: {
-  name: string; password: string; phone: string; address: string;
+/** Registration is handled server-side via /api/auth/register to keep the
+ *  service role key off the browser. This client helper calls that route. */
+export async function registerCoordinator(data: {
+  name: string; email: string; password: string; phone: string; address: string;
 }): Promise<CoordinatorProfile> {
-  const id = Math.random().toString(36).slice(2, 8);
-  const { data: row, error } = await supabase
-    .from('coordinators')
-    .insert({ id, ...data, signup_open_day: 15 })
-    .select()
-    .single();
-  if (error || !row) throw new Error(error?.message ?? 'Failed to create coordinator');
-  return row as CoordinatorProfile;
+  const res = await fetch('/api/auth/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error ?? 'Registration failed');
+
+  // Sign in immediately after registration so the client has a session
+  return signInCoordinator(data.email, data.password);
 }
 
 export async function updateCoordinator(

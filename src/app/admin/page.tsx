@@ -3,52 +3,55 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { findCoordinatorByPassword, createCoordinator, DEFAULT_ADDRESS } from '@/lib/db';
+import { signInCoordinator, registerCoordinator, DEFAULT_ADDRESS } from '@/lib/db';
 
 export default function AdminLogin() {
   const [mode, setMode] = useState<'login' | 'register'>('login');
 
   // Login
+  const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
 
   // Register
-  const [regName, setRegName] = useState('');
+  const [regName,    setRegName]    = useState('');
+  const [regEmail,   setRegEmail]   = useState('');
   const [regPassword, setRegPassword] = useState('');
-  const [regPhone, setRegPhone] = useState('');
+  const [regPhone,   setRegPhone]   = useState('');
   const [regAddress, setRegAddress] = useState('');
 
-  const [error, setError] = useState('');
+  const [error,   setError]   = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
   async function handleLogin() {
-    if (!password.trim()) return;
+    if (!email.trim() || !password) return;
     setLoading(true); setError('');
-    const coord = await findCoordinatorByPassword(password.trim());
-    setLoading(false);
-    if (coord) {
-      sessionStorage.setItem('seva_admin', coord.id);
+    try {
+      await signInCoordinator(email.trim(), password);
       router.push('/admin/dashboard');
-    } else {
-      setError('Incorrect password. Try again.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Login failed. Check your email and password.');
+    } finally {
+      setLoading(false);
     }
   }
 
   async function handleRegister() {
-    if (!regName.trim())       { setError('Enter your name or chapter name.'); return; }
-    if (regPassword.length < 4){ setError('Password must be at least 4 characters.'); return; }
+    if (!regName.trim())          { setError('Enter your name or chapter name.'); return; }
+    if (!regEmail.trim())         { setError('Enter your email address.'); return; }
+    if (regPassword.length < 6)   { setError('Password must be at least 6 characters.'); return; }
     setLoading(true); setError('');
     try {
-      const coord = await createCoordinator({
+      await registerCoordinator({
         name:     regName.trim(),
+        email:    regEmail.trim(),
         password: regPassword,
         phone:    regPhone.replace(/\D/g, ''),
         address:  regAddress.trim() || DEFAULT_ADDRESS,
       });
-      sessionStorage.setItem('seva_admin', coord.id);
       router.push('/admin/dashboard');
-    } catch {
-      setError('Could not create account. Try a different password.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not create account. Try a different email.');
     } finally {
       setLoading(false);
     }
@@ -70,15 +73,23 @@ export default function AdminLogin() {
               {mode === 'login' ? 'Coordinator Login' : 'Create Your Account'}
             </h2>
             <p className="text-sm text-gray-400 mt-1">
-              {mode === 'login' ? 'Enter your coordinator password' : 'Set up your chapter'}
+              {mode === 'login' ? 'Sign in with your coordinator email' : 'Set up your chapter'}
             </p>
           </div>
 
           {mode === 'login' ? (
             <div className="space-y-3">
               <input
+                type="email"
+                placeholder="Email address"
+                value={email}
+                onChange={e => { setEmail(e.target.value); setError(''); }}
+                onKeyDown={e => e.key === 'Enter' && handleLogin()}
+                className={`w-full border rounded-xl px-4 py-3 text-base focus:outline-none transition-colors ${error ? 'border-red-400 bg-red-50' : 'border-gray-200 focus:border-orange-400'}`}
+              />
+              <input
                 type="password"
-                placeholder="Enter your password"
+                placeholder="Password"
                 value={password}
                 onChange={e => { setPassword(e.target.value); setError(''); }}
                 onKeyDown={e => e.key === 'Enter' && handleLogin()}
@@ -90,9 +101,13 @@ export default function AdminLogin() {
                 {loading ? 'Logging in…' : 'Login'}
               </button>
               <p className="text-center text-sm text-gray-400 pt-1">
-                Demo password:{' '}
-                <button onClick={() => { setPassword('seva2024'); setError(''); }}
-                  className="font-mono font-medium text-orange-500 underline">seva2024</button>
+                Demo:{' '}
+                <button
+                  onClick={() => { setEmail('admin@sevacommons.org'); setPassword('seva2024'); setError(''); }}
+                  className="font-mono font-medium text-orange-500 underline"
+                >
+                  admin@sevacommons.org
+                </button>
               </p>
             </div>
           ) : (
@@ -100,7 +115,10 @@ export default function AdminLogin() {
               <input type="text" placeholder="Your name or chapter name *"
                 value={regName} onChange={e => { setRegName(e.target.value); setError(''); }}
                 className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400" />
-              <input type="password" placeholder="Choose a password *"
+              <input type="email" placeholder="Email address *"
+                value={regEmail} onChange={e => { setRegEmail(e.target.value); setError(''); }}
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400" />
+              <input type="password" placeholder="Choose a password * (min 6 chars)"
                 value={regPassword} onChange={e => { setRegPassword(e.target.value); setError(''); }}
                 className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400" />
               <input type="tel" inputMode="numeric" placeholder="Your phone number"

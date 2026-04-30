@@ -5,9 +5,12 @@ import { useRouter } from 'next/navigation';
 import {
   getEvents, getSignups, addEvent, deleteEvent, updateEvent,
   addSignup, adminMarkDelivered, removeSignup, getSlotsUsed,
-  getCoordinator, updateCoordinator, getMemberContributions, downloadCsv,
+  getCoordinator, getCoordinatorByUserId, updateCoordinator,
+  updateCoordinatorPassword, signOutCoordinator,
+  getMemberContributions, downloadCsv,
   SevaEvent, Signup, ItemType, itemTypeLabel, CoordinatorProfile, MemberContribution,
 } from '@/lib/db';
+import { supabase } from '@/lib/supabase';
 import { formatTime } from '@/lib/ics';
 
 function formatDate(dateStr: string) {
@@ -151,12 +154,15 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const cid = sessionStorage.getItem('seva_admin');
-    if (!cid) { router.push('/admin'); return; }
-    setCoordId(cid);
-    const base = window.location.origin + '/member';
-    setMemberUrl(`${base}?coord=${cid}`);
-    loadAll(cid);
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session) { router.push('/admin'); return; }
+      const profile = await getCoordinatorByUserId(session.user.id);
+      if (!profile) { router.push('/admin'); return; }
+      setCoordId(profile.id);
+      const base = window.location.origin + '/member';
+      setMemberUrl(`${base}?coord=${profile.id}`);
+      loadAll(profile.id);
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
@@ -295,21 +301,28 @@ export default function AdminDashboard() {
   async function handleSaveSettings() {
     if (!settingsName.trim()) return;
     setSettingsLoading(true);
-    await updateCoordinator(coordId, {
-      name: settingsName.trim(),
-      ...(settingsPassword.trim() ? { password: settingsPassword.trim() } : {}),
-      phone: settingsPhone.replace(/\D/g, ''),
-      address: settingsAddress.trim(),
-      signup_open_day: signupOpenDay,
-      signup_open_override:  signupOpenOverride.trim()  || null,
-      signup_close_override: signupCloseOverride.trim() || null,
-    });
-    const updated = await getCoordinator(coordId);
-    if (updated) setCoord(updated);
-    setSettingsPassword('');
-    setSettingsLoading(false);
-    setSettingsSaved(true);
-    setTimeout(() => setSettingsSaved(false), 2500);
+    try {
+      // Save profile fields
+      await updateCoordinator(coordId, {
+        name:    settingsName.trim(),
+        phone:   settingsPhone.replace(/\D/g, ''),
+        address: settingsAddress.trim(),
+        signup_open_day:      signupOpenDay,
+        signup_open_override:  signupOpenOverride.trim()  || null,
+        signup_close_override: signupCloseOverride.trim() || null,
+      });
+      // Change password separately via Supabase Auth (only if provided)
+      if (settingsPassword.trim()) {
+        await updateCoordinatorPassword(settingsPassword.trim());
+      }
+      const updated = await getCoordinator(coordId);
+      if (updated) setCoord(updated);
+      setSettingsPassword('');
+      setSettingsSaved(true);
+      setTimeout(() => setSettingsSaved(false), 2500);
+    } finally {
+      setSettingsLoading(false);
+    }
   }
 
   function handleCopySummary() {
@@ -378,7 +391,7 @@ export default function AdminDashboard() {
           <h1 className="font-bold text-gray-900 text-lg">Seva Track</h1>
           <p className="text-sm text-gray-400 truncate max-w-[180px]">{coord.name}</p>
         </div>
-        <button onClick={() => { sessionStorage.removeItem('seva_admin'); router.push('/admin'); }} className="text-sm text-gray-400 hover:text-gray-600">Logout</button>
+        <button onClick={async () => { await signOutCoordinator(); router.push('/admin'); }} className="text-sm text-gray-400 hover:text-gray-600">Logout</button>
       </header>
 
       {/* Stats */}
