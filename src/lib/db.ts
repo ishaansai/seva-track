@@ -100,7 +100,7 @@ export function isSignupOpen(coord: CoordinatorProfile): boolean {
 
 const DEFAULT_ADDRESS  = '925 Roselma Pl, Pleasanton CA 94566';
 const DEFAULT_PHONE    = '9258904273';
-const DEFAULT_COORD_ID = 'seva2024';
+const DEFAULT_COORD_ID = 'seva2026';
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
