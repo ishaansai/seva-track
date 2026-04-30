@@ -53,8 +53,11 @@ export interface MemberContribution {
   total_signups: number;
   total_delivered: number;
   meal_bag_deliveries: number;
-  total_meal_bags: number;       // meal_bag_deliveries × 25
-  nutritional_deliveries: number;
+  total_meal_bags: number;         // (meal_bag_deliveries × 25) + meal_bag_adjustment
+  nutritional_deliveries: number;  // auto count + nutritional_adjustment
+  meal_bag_adjustment: number;     // manual override added on top
+  nutritional_adjustment: number;
+  adjustment_note: string;
   first_signup: string;
   last_signup: string;
 }
@@ -313,6 +316,26 @@ export async function uploadDeliveryPhoto(
     .getPublicUrl(path);
 
   return data.publicUrl;
+}
+
+// ─── Manual adjustments ───────────────────────────────────────────────────────
+
+/** Upsert a manual adjustment for a member's contribution totals. */
+export async function setMemberAdjustment(data: {
+  coord_id: string;
+  member_phone: string;
+  member_name: string;
+  meal_bag_adjustment: number;
+  nutritional_adjustment: number;
+  note: string;
+}): Promise<void> {
+  const { error } = await supabase
+    .from('member_adjustments')
+    .upsert(
+      { ...data, updated_at: new Date().toISOString() },
+      { onConflict: 'coord_id,member_phone' },
+    );
+  if (error) throw new Error(error.message);
 }
 
 // ─── CSV export ───────────────────────────────────────────────────────────────

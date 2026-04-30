@@ -7,7 +7,7 @@ import {
   addSignup, adminMarkDelivered, removeSignup, getSlotsUsed,
   getCoordinator, getCoordinatorByUserId, updateCoordinator,
   updateCoordinatorPassword, signOutCoordinator,
-  getMemberContributions, downloadCsv,
+  getMemberContributions, setMemberAdjustment, downloadCsv,
   SevaEvent, Signup, ItemType, itemTypeLabel, CoordinatorProfile, MemberContribution,
 } from '@/lib/db';
 import { supabase } from '@/lib/supabase';
@@ -103,6 +103,13 @@ export default function AdminDashboard() {
   const [events, setEvents] = useState<SevaEvent[]>([]);
   const [signups, setSignups] = useState<Signup[]>([]);
   const [contributions, setContributions] = useState<MemberContribution[]>([]);
+
+  // Manual adjustment edit state
+  const [editingMember, setEditingMember]         = useState<string | null>(null); // member_phone
+  const [adjMealBags,   setAdjMealBags]           = useState(0);
+  const [adjNutritional, setAdjNutritional]       = useState(0);
+  const [adjNote,       setAdjNote]               = useState('');
+  const [adjSaving,     setAdjSaving]             = useState(false);
   const [view, setView] = useState<'events' | 'create' | 'members' | 'settings' | 'logistics'>('events');
   const [selectedEvent, setSelectedEvent] = useState<string | null>(null);
   const [memberUrl, setMemberUrl] = useState('');
@@ -322,6 +329,31 @@ export default function AdminDashboard() {
       setTimeout(() => setSettingsSaved(false), 2500);
     } finally {
       setSettingsLoading(false);
+    }
+  }
+
+  function openAdjustEditor(c: MemberContribution) {
+    setEditingMember(c.member_phone);
+    setAdjMealBags(c.meal_bag_adjustment ?? 0);
+    setAdjNutritional(c.nutritional_adjustment ?? 0);
+    setAdjNote(c.adjustment_note ?? '');
+  }
+
+  async function handleSaveAdjustment(c: MemberContribution) {
+    setAdjSaving(true);
+    try {
+      await setMemberAdjustment({
+        coord_id:              coordId,
+        member_phone:          c.member_phone,
+        member_name:           c.member_name,
+        meal_bag_adjustment:   adjMealBags,
+        nutritional_adjustment: adjNutritional,
+        note:                  adjNote.trim(),
+      });
+      await refresh();
+      setEditingMember(null);
+    } finally {
+      setAdjSaving(false);
     }
   }
 
@@ -741,35 +773,108 @@ export default function AdminDashboard() {
               </div>
             ) : (
               <div className="space-y-2">
-                {contributions.map((c, i) => (
-                  <div key={`${c.member_phone}-${i}`} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-gray-800 text-base truncate">{c.member_name}</p>
-                        {c.member_phone && <p className="text-sm text-gray-400">{c.member_phone}</p>}
+                {contributions.map((c, i) => {
+                  const isEditing = editingMember === c.member_phone;
+                  return (
+                    <div key={`${c.member_phone}-${i}`} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-gray-800 text-base truncate">{c.member_name}</p>
+                          {c.member_phone && <p className="text-sm text-gray-400">{c.member_phone}</p>}
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <div className="text-right flex-shrink-0">
+                            <p className="text-xl font-bold text-purple-600">{c.total_meal_bags}</p>
+                            <p className="text-xs text-gray-400">meal bags</p>
+                          </div>
+                          <button
+                            onClick={() => isEditing ? setEditingMember(null) : openAdjustEditor(c)}
+                            className="text-xs text-gray-400 hover:text-orange-500 border border-gray-200 rounded-lg px-2 py-1 mt-0.5 transition-colors"
+                          >
+                            {isEditing ? 'Cancel' : '✏️ Edit'}
+                          </button>
+                        </div>
                       </div>
-                      <div className="text-right flex-shrink-0">
-                        <p className="text-xl font-bold text-purple-600">{c.total_meal_bags}</p>
-                        <p className="text-xs text-gray-400">meal bags</p>
+
+                      <div className="flex gap-3 mt-2 flex-wrap">
+                        <span className="text-sm text-green-600 font-medium">✓ {c.total_delivered} delivered</span>
+                        <span className="text-sm text-gray-400">{c.total_signups} signed up</span>
+                        {Number(c.meal_bag_deliveries) > 0 && (
+                          <span className="text-sm text-orange-600">🛍 {c.meal_bag_deliveries}× meal bags</span>
+                        )}
+                        {Number(c.nutritional_deliveries) > 0 && (
+                          <span className="text-sm text-teal-600">🥗 {c.nutritional_deliveries}× nutritional</span>
+                        )}
                       </div>
-                    </div>
-                    <div className="flex gap-3 mt-2 flex-wrap">
-                      <span className="text-sm text-green-600 font-medium">✓ {c.total_delivered} delivered</span>
-                      <span className="text-sm text-gray-400">{c.total_signups} signed up</span>
-                      {Number(c.meal_bag_deliveries) > 0 && (
-                        <span className="text-sm text-orange-600">🛍 {c.meal_bag_deliveries}× meal bags</span>
+
+                      {/* Manual adjustment badges */}
+                      {(Number(c.meal_bag_adjustment) !== 0 || Number(c.nutritional_adjustment) !== 0) && (
+                        <div className="flex gap-2 mt-1.5 flex-wrap">
+                          {Number(c.meal_bag_adjustment) !== 0 && (
+                            <span className="text-xs bg-orange-50 text-orange-600 border border-orange-100 rounded-full px-2 py-0.5">
+                              {Number(c.meal_bag_adjustment) > 0 ? '+' : ''}{c.meal_bag_adjustment} bags (manual)
+                            </span>
+                          )}
+                          {Number(c.nutritional_adjustment) !== 0 && (
+                            <span className="text-xs bg-teal-50 text-teal-600 border border-teal-100 rounded-full px-2 py-0.5">
+                              {Number(c.nutritional_adjustment) > 0 ? '+' : ''}{c.nutritional_adjustment} nutritional (manual)
+                            </span>
+                          )}
+                          {c.adjustment_note && (
+                            <span className="text-xs text-gray-400 italic">"{c.adjustment_note}"</span>
+                          )}
+                        </div>
                       )}
-                      {Number(c.nutritional_deliveries) > 0 && (
-                        <span className="text-sm text-teal-600">🥗 {c.nutritional_deliveries}× nutritional</span>
+
+                      <p className="text-xs text-gray-300 mt-1.5">
+                        First: {c.first_signup ? new Date(c.first_signup).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'}
+                        {' · '}
+                        Last: {c.last_signup ? new Date(c.last_signup).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'}
+                      </p>
+
+                      {/* Inline adjustment editor */}
+                      {isEditing && (
+                        <div className="mt-3 pt-3 border-t border-gray-100 space-y-3">
+                          <p className="text-sm font-semibold text-gray-700">Manual adjustment (adds to auto total)</p>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-xs text-gray-500 block mb-1">🛍 Meal bags ±</label>
+                              <input
+                                type="number"
+                                value={adjMealBags}
+                                onChange={e => setAdjMealBags(Number(e.target.value))}
+                                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-orange-400"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-500 block mb-1">🥗 Nutritional ±</label>
+                              <input
+                                type="number"
+                                value={adjNutritional}
+                                onChange={e => setAdjNutritional(Number(e.target.value))}
+                                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-orange-400"
+                              />
+                            </div>
+                          </div>
+                          <input
+                            type="text"
+                            placeholder="Note (optional) e.g. brought extra bags in Dec"
+                            value={adjNote}
+                            onChange={e => setAdjNote(e.target.value)}
+                            className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-orange-400"
+                          />
+                          <button
+                            onClick={() => handleSaveAdjustment(c)}
+                            disabled={adjSaving}
+                            className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors"
+                          >
+                            {adjSaving ? 'Saving…' : 'Save Adjustment'}
+                          </button>
+                        </div>
                       )}
                     </div>
-                    <p className="text-xs text-gray-300 mt-1.5">
-                      First signup: {c.first_signup ? new Date(c.first_signup).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'}
-                      {' · '}
-                      Last: {c.last_signup ? new Date(c.last_signup).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'}
-                    </p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
