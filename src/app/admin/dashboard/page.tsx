@@ -821,7 +821,7 @@ export default function AdminDashboard() {
                             </span>
                           )}
                           {c.adjustment_note && (
-                            <span className="text-xs text-gray-400 italic">"{c.adjustment_note}"</span>
+                            <span className="text-xs text-gray-400 italic">&ldquo;{c.adjustment_note}&rdquo;</span>
                           )}
                         </div>
                       )}
