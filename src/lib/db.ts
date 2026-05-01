@@ -139,6 +139,29 @@ export function getSignupWindowFromEvents(
   return { open, close };
 }
 
+/**
+ * Is the signup window open for a SPECIFIC event?
+ * Opens 16th of the month before the event month.
+ * Closes Sunday 10am of the event's delivery week.
+ */
+export function isEventSignupOpen(event: SevaEvent, coord: CoordinatorProfile): boolean {
+  // Admin overrides win globally
+  if (coord.signup_open_override && coord.signup_close_override) {
+    const now = new Date();
+    return now >= new Date(coord.signup_open_override + 'T00:00:00') &&
+           now <= new Date(coord.signup_close_override + 'T23:59:59');
+  }
+  const now = new Date();
+  const eventDate = new Date(event.date + 'T00:00:00');
+  const em = eventDate.getMonth(), ey = eventDate.getFullYear();
+  const open = new Date(em === 0 ? ey - 1 : ey, em === 0 ? 11 : em - 1, 16, 0, 0, 0);
+  const dow = eventDate.getDay();
+  const close = new Date(eventDate);
+  close.setDate(close.getDate() - (dow === 0 ? 0 : dow)); // back to Sunday of that week
+  close.setHours(10, 0, 0, 0); // 10am Sunday
+  return now >= open && now <= close;
+}
+
 const DEFAULT_ADDRESS  = '925 Roselma Pl, Pleasanton CA 94566';
 const DEFAULT_PHONE    = '9258904273';
 const DEFAULT_COORD_ID = ''; // unused — getDefaultCoordinator() queries the DB dynamically
@@ -294,9 +317,21 @@ export async function addSignup(data: {
   item_type: ItemType;
   added_by_admin?: boolean;
 }): Promise<Signup> {
+  // Use the first name on record for this phone number (so family members all get same name)
+  let memberName = data.member_name;
+  if (data.member_phone) {
+    const { data: existing } = await supabase
+      .from('signups')
+      .select('member_name')
+      .eq('coord_id', data.coord_id)
+      .eq('member_phone', data.member_phone.replace(/\D/g, ''))
+      .order('signed_up_at', { ascending: true })
+      .limit(1);
+    if (existing?.[0]?.member_name) memberName = existing[0].member_name;
+  }
   const { data: row, error } = await supabase
     .from('signups')
-    .insert({ ...data, status: 'pending' })
+    .insert({ ...data, member_name: memberName, status: 'pending' })
     .select()
     .single();
   if (error || !row) throw new Error(error?.message ?? 'Failed to add signup');

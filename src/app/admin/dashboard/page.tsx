@@ -795,6 +795,70 @@ export default function AdminDashboard() {
               </div>
             )}
 
+            {/* Send Reminders — shown when signups just closed (Sunday 10am through delivery day) */}
+            {(() => {
+              if (!selectedEventData) return null;
+              const ed = new Date(selectedEventData.date + 'T00:00:00');
+              const dow = ed.getDay();
+              const sunday = new Date(ed);
+              sunday.setDate(sunday.getDate() - (dow === 0 ? 0 : dow));
+              sunday.setHours(10, 0, 0);
+              const now = new Date();
+              const signupsClosed = now >= sunday && now <= ed;
+              if (!signupsClosed || selectedSignups.length === 0) return null;
+              return (
+                <div className="bg-purple-50 border border-purple-200 rounded-2xl p-4 space-y-3">
+                  <div>
+                    <p className="font-bold text-purple-800 text-base">📨 Signups closed — send reminders</p>
+                    <p className="text-sm text-purple-600 mt-0.5">{selectedSignups.length} volunteers signed up for this week</p>
+                  </div>
+                  {/* Group message to copy for WA group */}
+                  <div>
+                    <p className="text-xs font-semibold text-purple-700 mb-1">Copy for WhatsApp group:</p>
+                    <pre className="text-xs text-gray-700 bg-white rounded-xl p-3 border border-purple-100 whitespace-pre-wrap font-mono leading-relaxed">
+{`🫶 Reminder — Seva Commons delivery is this ${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][ed.getDay()]}!
+
+Drop-off: ${formatTime(selectedEventData.drop_off_start)}–${formatTime(selectedEventData.drop_off_end)} · ${selectedEventData.drop_off_location}
+
+This week's volunteers:
+${selectedSignups.map((s,i) => `${i+1}. ${s.member_name} — ${itemTypeLabel(s.item_type)}`).join('\n')}
+
+Thank you for your seva! 🙏`}
+                    </pre>
+                    <button
+                      onClick={() => {
+                        const msg = `🫶 Reminder — Seva Commons delivery is this ${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][ed.getDay()]}!\n\nDrop-off: ${formatTime(selectedEventData.drop_off_start)}–${formatTime(selectedEventData.drop_off_end)} · ${selectedEventData.drop_off_location}\n\nThis week's volunteers:\n${selectedSignups.map((s,i) => `${i+1}. ${s.member_name} — ${itemTypeLabel(s.item_type)}`).join('\n')}\n\nThank you for your seva! 🙏`;
+                        navigator.clipboard.writeText(msg);
+                      }}
+                      className="mt-2 w-full bg-purple-500 hover:bg-purple-600 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
+                    >
+                      📋 Copy Group Message
+                    </button>
+                  </div>
+                  {/* Individual WA links */}
+                  <div>
+                    <p className="text-xs font-semibold text-purple-700 mb-2">Or message individually:</p>
+                    <div className="space-y-2">
+                      {selectedSignups.filter(s => s.member_phone).map(s => (
+                        <a
+                          key={s.id}
+                          href={`https://wa.me/${s.member_phone.replace(/\D/g,'')}?text=${encodeURIComponent(`Hi ${s.member_name}! 🫶 Just a reminder — your Seva Commons meal bag delivery is this ${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][ed.getDay()]}. Drop-off: ${formatTime(selectedEventData.drop_off_start)}–${formatTime(selectedEventData.drop_off_end)} at ${selectedEventData.drop_off_location}. Thank you! 🙏`)}`}
+                          target="_blank" rel="noopener noreferrer"
+                          className="flex items-center justify-between bg-white border border-purple-100 rounded-xl px-3 py-2.5 hover:bg-purple-50 transition-colors"
+                        >
+                          <div>
+                            <p className="text-sm font-semibold text-gray-800">{s.member_name}</p>
+                            <p className="text-xs text-gray-400">{itemTypeLabel(s.item_type)}</p>
+                          </div>
+                          <span className="text-[#25D366] font-bold text-sm">💬 WA</span>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Share List Modal */}
             {showShareList && (
               <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 space-y-3">
@@ -1034,9 +1098,17 @@ export default function AdminDashboard() {
                           {c.member_phone && <p className="text-sm text-gray-400">{c.member_phone}</p>}
                         </div>
                         <div className="flex items-start gap-2">
-                          <div className="text-right flex-shrink-0">
-                            <p className="text-xl font-bold text-purple-600">{c.total_meal_bags}</p>
-                            <p className="text-xs text-gray-400">meal bags</p>
+                          <div className="flex gap-3 flex-shrink-0">
+                            <div className="text-right">
+                              <p className="text-xl font-bold text-purple-600">{c.total_meal_bags}</p>
+                              <p className="text-xs text-gray-400">meal bags</p>
+                            </div>
+                            {Number(c.nutritional_deliveries) > 0 && (
+                              <div className="text-right">
+                                <p className="text-xl font-bold text-teal-600">{c.nutritional_deliveries}</p>
+                                <p className="text-xs text-gray-400">nutritional</p>
+                              </div>
+                            )}
                           </div>
                           <button
                             onClick={() => isEditing ? setEditingMember(null) : openAdjustEditor(c)}

@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   getEvents, getSignups, addSignup, removeSignup, getSlotsUsed,
-  getCoordinator, getDefaultCoordinator, getSignupWindow, getSignupWindowFromEvents,
+  getCoordinator, getDefaultCoordinator, isEventSignupOpen,
   SevaEvent, Signup, ItemType, itemTypeLabel, CoordinatorProfile,
 } from '@/lib/db';
 import { generateIcs, googleCalendarUrl, formatTime, ReminderOffset } from '@/lib/ics';
@@ -70,13 +70,18 @@ function MemberPageInner() {
   }, [coordParam]);
 
   const today = new Date().toISOString().slice(0, 10);
-  let visibleEvents = events.filter(e => e.date >= today);
-  if (monthFilter) visibleEvents = visibleEvents.filter(e => e.date.startsWith(monthFilter));
+  // Active month: if today is on or after the 16th, show NEXT month; otherwise current month
+  const activeMonthDate = new Date();
+  if (activeMonthDate.getDate() >= 16) activeMonthDate.setMonth(activeMonthDate.getMonth() + 1);
+  const activeMonthStr = `${activeMonthDate.getFullYear()}-${String(activeMonthDate.getMonth() + 1).padStart(2, '0')}`;
+  const [showAllMonths, setShowAllMonths] = useState(false);
 
-  // Signup window
-  const now = new Date();
-  const signupWindow = coord && events.length > 0 ? getSignupWindowFromEvents(coord, events) : (coord ? getSignupWindow(coord) : null);
-  const signupOpen = signupWindow ? (now >= signupWindow.open && now <= signupWindow.close) : false;
+  let visibleEvents = events.filter(e => e.date >= today);
+  if (monthFilter) {
+    visibleEvents = visibleEvents.filter(e => e.date.startsWith(monthFilter));
+  } else if (!showAllMonths) {
+    visibleEvents = visibleEvents.filter(e => e.date.startsWith(activeMonthStr));
+  }
 
   function getSlotInfo(event: SevaEvent) {
     const { mealBagUsed, nutritionalUsed } = getSlotsUsed(event.id, signups);
@@ -161,12 +166,6 @@ function MemberPageInner() {
     if (!justSignedUp) return '#';
     const { signup, event } = justSignedUp;
     return googleCalendarUrl(event.date, signup.member_name, itemTypeLabel(signup.item_type), event.drop_off_start, event.drop_off_end, event.drop_off_location);
-  }
-
-  function daysUntil(date: Date): number {
-    const now = new Date();
-    const diff = date.getTime() - now.getTime();
-    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
   }
 
   // NOTE: intentionally NOT using all DB signups here — only this session's signups
@@ -332,28 +331,40 @@ function MemberPageInner() {
                   </div>
                 )}
 
-                {/* Signup window banner */}
-                {coord && !signupOpen && signupWindow && (
-                  <div className="mt-4 bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3">
-                    <p className="font-semibold text-blue-800 text-base">🗓 Sign-ups not open yet</p>
-                    <p className="text-sm text-blue-600 mt-0.5">
-                      Opens {signupWindow.open.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })} –{' '}
-                      closes {signupWindow.close.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}
-                    </p>
-                  </div>
-                )}
-                {coord && signupOpen && signupWindow && (() => {
-                  const days = daysUntil(signupWindow.close);
-                  const closeLabel = days === 0 ? 'Closes today!' : days === 1 ? 'Closes tomorrow!' : `Closes in ${days} day${days !== 1 ? 's' : ''}`;
-                  return (
-                    <div className="mt-4 bg-green-50 border border-green-200 rounded-2xl px-4 py-3 flex items-center gap-3">
-                      <span className="text-2xl">✅</span>
-                      <div>
-                        <p className="font-semibold text-green-800 text-base">Sign-ups are open!</p>
-                        <p className="text-sm text-green-600 mt-0.5">
-                          {closeLabel} · {signupWindow.close.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}
-                        </p>
+                {/* Signup open/close banner — computed from first visible event */}
+                {coord && visibleEvents.length > 0 && (() => {
+                  const firstOpen = visibleEvents.find(e => isEventSignupOpen(e, coord));
+                  if (firstOpen) {
+                    // At least one event is open
+                    const dow = new Date(firstOpen.date + 'T00:00:00').getDay();
+                    const closeDate = new Date(firstOpen.date + 'T00:00:00');
+                    closeDate.setDate(closeDate.getDate() - (dow === 0 ? 0 : dow));
+                    closeDate.setHours(10, 0, 0);
+                    const days = Math.max(0, Math.ceil((closeDate.getTime() - Date.now()) / 86400000));
+                    return (
+                      <div className="mt-4 bg-green-50 border border-green-200 rounded-2xl px-4 py-3 flex items-center gap-3">
+                        <span className="text-2xl">✅</span>
+                        <div>
+                          <p className="font-semibold text-green-800 text-base">Sign-ups are open!</p>
+                          <p className="text-sm text-green-600 mt-0.5">
+                            {days === 0 ? 'Closes today at 10am' : days === 1 ? 'Closes tomorrow at 10am' : `Closes in ${days} days`}
+                          </p>
+                        </div>
                       </div>
+                    );
+                  }
+                  // All events closed — find next open date
+                  const nextOpenEvent = visibleEvents[0];
+                  if (!nextOpenEvent) return null;
+                  const ed = new Date(nextOpenEvent.date + 'T00:00:00');
+                  const em = ed.getMonth(), ey = ed.getFullYear();
+                  const openDate = new Date(em === 0 ? ey-1 : ey, em === 0 ? 11 : em-1, 16);
+                  return (
+                    <div className="mt-4 bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3">
+                      <p className="font-semibold text-blue-800 text-base">🗓 Sign-ups not open yet</p>
+                      <p className="text-sm text-blue-600 mt-0.5">
+                        Opens {openDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}
+                      </p>
                     </div>
                   );
                 })()}
@@ -432,8 +443,27 @@ function MemberPageInner() {
                             </div>
                           ) : isFull ? (
                             <div className="text-center py-2 text-base text-red-400 font-medium">All slots filled</div>
-                          ) : !signupOpen ? (
-                            <div className="text-center py-2 text-base text-blue-400 font-medium">Sign-ups not open yet</div>
+                          ) : !isEventSignupOpen(event, coord!) ? (
+                            // Signups closed for this event — show who is delivering
+                            (() => {
+                              const evSignups = signups.filter(s => s.event_id === event.id);
+                              if (evSignups.length === 0) return <div className="text-center py-2 text-sm text-gray-400">Signups closed</div>;
+                              return (
+                                <div className="bg-purple-50 border border-purple-100 rounded-xl p-3">
+                                  <p className="text-xs font-semibold text-purple-700 mb-2">🔒 Signups closed — delivering this week:</p>
+                                  <div className="space-y-1">
+                                    {evSignups.map(s => (
+                                      <div key={s.id} className="flex items-center gap-2">
+                                        <span className={`text-xs ${s.status === 'delivered' ? 'text-green-500' : 'text-amber-400'}`}>
+                                          {s.status === 'delivered' ? '✅' : '⏳'}
+                                        </span>
+                                        <p className="text-sm text-gray-700">{s.member_name} — {itemTypeLabel(s.item_type)}</p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })()
                           ) : showForm === event.id ? (
                             <SignupForm
                               slots={slots}
@@ -456,6 +486,14 @@ function MemberPageInner() {
                         </div>
                       );
                     })}
+                    {!monthFilter && (
+                      <button
+                        onClick={() => setShowAllMonths(v => !v)}
+                        className="w-full py-3 text-sm text-orange-500 font-medium border border-orange-100 rounded-2xl hover:bg-orange-50 transition-colors"
+                      >
+                        {showAllMonths ? '← Show current month only' : 'See all upcoming months →'}
+                      </button>
+                    )}
                   </div>
                 )}
               </>

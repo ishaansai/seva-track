@@ -23,12 +23,6 @@ export default async function Home() {
           >
             I&apos;m a Member
           </Link>
-          <Link
-            href="/logistics"
-            className="bg-white hover:bg-orange-50 text-orange-600 text-center py-4 px-8 rounded-2xl text-lg font-semibold border-2 border-orange-200 transition-all active:scale-95"
-          >
-            Logistics Guide
-          </Link>
           <div className="pt-4 text-center">
             <Link href="/admin" className="text-sm text-gray-400 hover:text-gray-600 transition-colors">
               Admin Portal →
