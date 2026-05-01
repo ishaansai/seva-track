@@ -5,7 +5,6 @@ import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { getSignupById, getEvents, getCoordinator, markDelivered, uploadDeliveryPhoto, itemTypeLabel, Signup, SevaEvent, CoordinatorProfile } from '@/lib/db';
-import { formatTime } from '@/lib/ics';
 
 function formatDate(dateStr: string) {
   const d = new Date(dateStr + 'T00:00:00');
