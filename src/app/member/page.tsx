@@ -8,7 +8,7 @@ import {
   getCoordinator, getDefaultCoordinator, isSignupOpen, getSignupWindow,
   SevaEvent, Signup, ItemType, itemTypeLabel, CoordinatorProfile,
 } from '@/lib/db';
-import { generateIcs, formatTime, ReminderOffset } from '@/lib/ics';
+import { generateIcs, googleCalendarUrl, formatTime, ReminderOffset } from '@/lib/ics';
 
 const REMINDERS: { value: ReminderOffset; label: string; icon: string }[] = [
   { value: '3days', label: '3 Days Before', icon: '🗓' },
@@ -143,7 +143,13 @@ function MemberPageInner() {
   function handleSetReminder(offset: ReminderOffset) {
     if (!justSignedUp) return;
     const { signup, event } = justSignedUp;
-    generateIcs(event.date, signup.member_name, itemTypeLabel(signup.item_type), event.drop_off_start, event.drop_off_end, offset);
+    generateIcs(event.date, signup.member_name, itemTypeLabel(signup.item_type), event.drop_off_start, event.drop_off_end, offset, event.drop_off_location);
+  }
+
+  function getGoogleCalUrl() {
+    if (!justSignedUp) return '#';
+    const { signup, event } = justSignedUp;
+    return googleCalendarUrl(event.date, signup.member_name, itemTypeLabel(signup.item_type), event.drop_off_start, event.drop_off_end, event.drop_off_location);
   }
 
   const signedUpEventIds = new Set(signups.map(s => s.event_id));
@@ -213,25 +219,45 @@ function MemberPageInner() {
                 </div>
 
                 <div className="bg-white rounded-2xl p-4 shadow-sm border border-orange-100">
-                  <p className="font-semibold text-gray-800 text-base mb-1">Set a Reminder</p>
-                  <p className="text-sm text-gray-400 mb-3">Downloads a calendar event — opens in iPhone Calendar, Google Calendar, etc.</p>
+                  <p className="font-semibold text-gray-800 text-base mb-1">Add to Calendar</p>
+                  <p className="text-sm text-gray-400 mb-4">So you don&apos;t forget! Pick your calendar app:</p>
+
+                  {/* Google Calendar — opens in browser, one tap to confirm */}
+                  <a
+                    href={getGoogleCalUrl()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-blue-200 bg-blue-50 hover:bg-blue-100 transition-colors mb-3"
+                    onClick={() => setTimeout(() => setJustSignedUp(null), 500)}
+                  >
+                    <span className="text-2xl">📅</span>
+                    <div className="flex-1">
+                      <p className="text-base font-bold text-blue-800">Google Calendar</p>
+                      <p className="text-sm text-blue-600">Opens Google Calendar to confirm</p>
+                    </div>
+                    <span className="text-blue-400 text-lg">↗</span>
+                  </a>
+
+                  {/* Apple / ICS — download file, opens in iPhone Calendar */}
+                  <p className="text-xs text-gray-400 font-medium mb-2">Apple Calendar / other:</p>
                   <div className="space-y-2">
                     {REMINDERS.map(r => (
                       <button
                         key={r.value}
-                        onClick={() => handleSetReminder(r.value)}
+                        onClick={() => { handleSetReminder(r.value); setTimeout(() => setJustSignedUp(null), 500); }}
                         className="w-full flex items-center gap-3 p-3.5 rounded-xl border border-orange-100 hover:bg-orange-50 transition-colors text-left"
                       >
-                        <span className="text-2xl">{r.icon}</span>
+                        <span className="text-xl">{r.icon}</span>
                         <div>
-                          <p className="text-base font-semibold text-gray-800">{r.label}</p>
-                          <p className="text-sm text-gray-400">Adds reminder to your calendar</p>
+                          <p className="text-sm font-semibold text-gray-800">{r.label} reminder</p>
+                          <p className="text-xs text-gray-400">Downloads .ics — tap to add to Apple Calendar</p>
                         </div>
-                        <span className="ml-auto text-orange-400 text-base">↓</span>
+                        <span className="ml-auto text-orange-400">↓</span>
                       </button>
                     ))}
                   </div>
-                  <button onClick={() => setJustSignedUp(null)} className="w-full mt-3 text-base text-gray-400 hover:text-gray-600 py-2">
+
+                  <button onClick={() => setJustSignedUp(null)} className="w-full mt-3 text-sm text-gray-400 hover:text-gray-600 py-2">
                     Skip, no reminder
                   </button>
                 </div>

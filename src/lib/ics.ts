@@ -21,6 +21,36 @@ function formatIcsDateFull(date: Date): string {
   return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}T${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
 }
 
+/** Returns a Google Calendar "Add Event" URL that opens pre-filled in the browser. */
+export function googleCalendarUrl(
+  eventDate: string,
+  memberName: string,
+  itemType: string,
+  dropOffStart: string,
+  dropOffEnd: string,
+  location: string,
+): string {
+  const deliveryDate  = new Date(eventDate + 'T00:00:00');
+  const dropOffDate   = new Date(deliveryDate);
+  dropOffDate.setDate(dropOffDate.getDate() - 1);
+
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const [startH, startM] = dropOffStart.split(':').map(Number);
+  const [endH,   endM]   = dropOffEnd.split(':').map(Number);
+
+  const dateStr = `${dropOffDate.getFullYear()}${pad(dropOffDate.getMonth() + 1)}${pad(dropOffDate.getDate())}`;
+  const start   = `${dateStr}T${pad(startH)}${pad(startM)}00`;
+  const end     = `${dateStr}T${pad(endH)}${pad(endM)}00`;
+
+  const title   = encodeURIComponent('Seva Commons – Drop off meal bags');
+  const details = encodeURIComponent(
+    `Hi ${memberName}! Drop off your ${itemType}.\nDelivery day: ${deliveryDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}`
+  );
+  const loc     = encodeURIComponent(location);
+
+  return `https://www.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${start}/${end}&details=${details}&location=${loc}`;
+}
+
 export function generateIcs(
   eventDate: string,   // YYYY-MM-DD (delivery date)
   memberName: string,
@@ -28,6 +58,7 @@ export function generateIcs(
   dropOffStart: string,  // "18:00"
   dropOffEnd: string,    // "21:00"
   reminder: ReminderOffset,
+  location?: string,
 ): void {
   const uid = `seva-${eventDate}-${memberName.replace(/\s+/g, '')}-${Date.now()}@sevatrack`;
 
@@ -42,7 +73,8 @@ export function generateIcs(
 
   const eventStart = `${formatIcsDateFull(dropOffDate).slice(0, 8)}T${pad(startH)}${pad(startM)}00`;
   const eventTitle = `Seva Commons – Drop off meal bags`;
-  const description = `Hi ${memberName}! Drop off your ${itemType} at:\\n925 Roselma Pl, Pleasanton CA 94566\\nTime: ${dropOffStart12} – ${dropOffEnd12}\\n\\nDelivery day: ${deliveryDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}\\n\\nQuestions? Call Anupama: (925) 890-4273 or Sharath: (925) 890-4271`;
+  const loc = location || '925 Roselma Pl, Pleasanton CA 94566';
+  const description = `Hi ${memberName}! Drop off your ${itemType} at:\\n${loc}\\nTime: ${dropOffStart12} – ${dropOffEnd12}\\n\\nDelivery day: ${deliveryDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}`;
 
   const ics = [
     'BEGIN:VCALENDAR',
@@ -56,7 +88,7 @@ export function generateIcs(
     `DTSTART:${eventStart}`,
     `SUMMARY:${eventTitle}`,
     `DESCRIPTION:${description}`,
-    'LOCATION:925 Roselma Pl\\, Pleasanton CA 94566',
+    `LOCATION:${loc.replace(/,/g, '\\,')}`,
     'BEGIN:VALARM',
     'ACTION:DISPLAY',
     `TRIGGER:${TRIGGERS[reminder]}`,
