@@ -260,7 +260,8 @@ export async function updateEvent(
 
 export async function deleteEvent(id: string): Promise<void> {
   // Signups cascade-delete via FK
-  await supabase.from('events').delete().eq('id', id);
+  const { error } = await supabase.from('events').delete().eq('id', id);
+  if (error) throw new Error(error.message);
 }
 
 // ─── Signups ──────────────────────────────────────────────────────────────────

@@ -319,9 +319,13 @@ export default function AdminDashboard() {
 
   async function handleDeleteEvent(id: string) {
     if (!confirm('Delete this date and all its signups?')) return;
-    await deleteEvent(id);
-    await refresh();
-    setSelectedEvent(null);
+    try {
+      await deleteEvent(id);
+      await refresh();
+      setSelectedEvent(null);
+    } catch (e) {
+      alert('Delete failed — ' + (e instanceof Error ? e.message : 'unknown error'));
+    }
   }
 
   function openEvent(event: SevaEvent) {
