@@ -113,12 +113,21 @@ function MemberPageInner() {
       setMySignedUpEventIds(prev => new Set([...prev, event.id]));
       setShowForm(null);
       setName(''); setPhone(''); setWantsMeals(true); setWantsNutritional(false);
-      // If coordinator wants signup notifications, auto-open WA pre-filled to notify them
+      // Send WA confirmation to the volunteer themselves
+      const cleanPhone = phone.replace(/\D/g, '');
+      if (cleanPhone) {
+        const waPhone = cleanPhone.length === 10 ? `1${cleanPhone}` : cleanPhone;
+        const volunteerMsg = encodeURIComponent(
+          `🎉 Hi ${name.trim()}! You're confirmed to deliver ${itemTypeLabel(itemType)} for Seva Commons on ${formatDate(event.date)}.\n\n📍 Drop-off: ${event.drop_off_location}\n🕕 Time: ${formatTime(event.drop_off_start)} – ${formatTime(event.drop_off_end)}\n\nThank you for your seva! 🙏`
+        );
+        window.open(`https://wa.me/${waPhone}?text=${volunteerMsg}`, '_blank');
+      }
+      // If coordinator wants signup notifications, notify them too (slight delay so both windows open)
       if (coord?.notify_on_signup && coord.phone) {
         const msg = encodeURIComponent(
           `Hi! ${name.trim()} just signed up to deliver ${itemTypeLabel(itemType)} on ${formatDate(event.date)} for Seva Commons. 🎉`
         );
-        window.open(`https://wa.me/${coord.phone}?text=${msg}`, '_blank');
+        setTimeout(() => window.open(`https://wa.me/${coord.phone}?text=${msg}`, '_blank'), 600);
       }
     } catch {
       alert('Could not sign up — you may already be signed up for this date.');

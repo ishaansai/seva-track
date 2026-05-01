@@ -4,7 +4,8 @@ import { useState, useEffect, useRef, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { getSignupById, getEvents, markDelivered, uploadDeliveryPhoto, itemTypeLabel, Signup, SevaEvent } from '@/lib/db';
+import { getSignupById, getEvents, getCoordinator, markDelivered, uploadDeliveryPhoto, itemTypeLabel, Signup, SevaEvent, CoordinatorProfile } from '@/lib/db';
+import { formatTime } from '@/lib/ics';
 
 function formatDate(dateStr: string) {
   const d = new Date(dateStr + 'T00:00:00');
@@ -18,6 +19,7 @@ function DeliverPageInner() {
 
   const [signup, setSignup] = useState<Signup | null>(null);
   const [event, setEvent] = useState<SevaEvent | null>(null);
+  const [coord, setCoord] = useState<CoordinatorProfile | null>(null);
   const [photo, setPhoto] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -31,9 +33,10 @@ function DeliverPageInner() {
       setSignup(s);
       setDone(s.status === 'delivered');
       if (s.delivery_photo_url) setPhoto(s.delivery_photo_url);
-      const evs = await getEvents(coordId);
+      const [evs, c] = await Promise.all([getEvents(coordId), getCoordinator(s.coord_id)]);
       const e = evs.find(e => e.id === s.event_id);
       if (e) setEvent(e);
+      if (c) setCoord(c);
     }
     load();
   }, [id, coordId]);
@@ -68,6 +71,22 @@ function DeliverPageInner() {
       const photoUrl = await uploadDeliveryPhoto(signup.id, photo);
       await markDelivered(signup.id, photoUrl);
       setDone(true);
+      // WA confirmation to the volunteer
+      const cleanPhone = signup.member_phone?.replace(/\D/g, '');
+      if (cleanPhone) {
+        const waPhone = cleanPhone.length === 10 ? `1${cleanPhone}` : cleanPhone;
+        const volunteerMsg = encodeURIComponent(
+          `✅ Hi ${signup.member_name}! Your ${itemTypeLabel(signup.item_type)} delivery for Seva Commons${event ? ` on ${formatDate(event.date)}` : ''} has been logged. Thank you for your seva! 🙏`
+        );
+        window.open(`https://wa.me/${waPhone}?text=${volunteerMsg}`, '_blank');
+      }
+      // WA alert to the admin
+      if (coord?.phone) {
+        const adminMsg = encodeURIComponent(
+          `📦 Delivery confirmed! ${signup.member_name} just completed their ${itemTypeLabel(signup.item_type)} delivery${event ? ` for ${formatDate(event.date)}` : ''}. 🎉`
+        );
+        setTimeout(() => window.open(`https://wa.me/${coord.phone}?text=${adminMsg}`, '_blank'), 600);
+      }
     } catch {
       alert('Failed to upload photo. Please try again.');
     } finally {

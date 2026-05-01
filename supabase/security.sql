@@ -94,7 +94,8 @@ CREATE POLICY "Anyone can upload delivery photos"
   ON storage.objects FOR INSERT
   WITH CHECK (
     bucket_id = 'delivery-photos'
-    AND lower((storage.foldername(name))[1]) != '..'  -- no path traversal
+    AND lower((storage.foldername(name))[1]) != '..'        -- no path traversal
+    AND (metadata->>'mimetype') LIKE 'image/%'              -- images only, no executables
   );
 
 -- ─── Seed: link the default demo coordinator to a Supabase Auth user ──
