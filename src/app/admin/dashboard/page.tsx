@@ -221,7 +221,7 @@ export default function AdminDashboard() {
       if (!profile) { router.push('/admin'); return; }
       setCoordId(profile.id);
       const base = window.location.origin + '/member';
-      setMemberUrl(base);
+      setMemberUrl(`${base}?coord=${profile.id}`);
       loadAll(profile.id);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -508,7 +508,7 @@ export default function AdminDashboard() {
   const selectedSignups = selectedEvent ? eventSignups(selectedEvent) : [];
   const pendingSignups = selectedSignups.filter(s => s.status === 'pending');
 
-  const monthLinkUrl = `${memberUrl}?month=${currentMonth}`;
+  const monthLinkUrl = `${memberUrl}&month=${currentMonth}`;
   const waMsg = encodeURIComponent(`Hey! Sign up for this month's Seva Commons meal bag delivery dates:\n${monthLinkUrl}`);
   const waUrl = `https://wa.me/?text=${waMsg}`;
 
