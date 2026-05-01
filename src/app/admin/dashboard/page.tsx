@@ -1180,33 +1180,86 @@ export default function AdminDashboard() {
             <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 space-y-4">
               <div>
                 <h2 className="font-bold text-gray-800 text-base">📅 Sign-Up Window</h2>
-                <p className="text-sm text-gray-400 mt-0.5">Controls when members can sign up each month</p>
+                <p className="text-sm text-gray-400 mt-0.5">Controls when members can sign up</p>
               </div>
-              <div>
-                <label className="text-sm text-gray-500 font-medium block mb-1">Opens on day of month (default 15)</label>
-                <input type="number" min={1} max={28} value={signupOpenDay} onChange={e => setSignupOpenDay(Number(e.target.value))}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400" />
-                <p className="text-xs text-gray-400 mt-1">Closes at end of same month automatically</p>
-              </div>
-              <div className="border-t border-gray-100 pt-4">
-                <p className="text-sm text-gray-500 font-medium mb-2">Override for this window (optional)</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs text-gray-400 block mb-1">Open date</label>
-                    <input type="date" value={signupOpenOverride} onChange={e => setSignupOpenOverride(e.target.value)}
-                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-orange-400" />
+
+              {/* Auto mode status */}
+              {!(signupOpenOverride || signupCloseOverride) ? (
+                <div className="bg-green-50 border border-green-200 rounded-xl p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-green-500 font-bold text-base">🤖</span>
+                    <p className="font-semibold text-green-800 text-sm">Auto Mode is ON</p>
                   </div>
-                  <div>
-                    <label className="text-xs text-gray-400 block mb-1">Close date</label>
-                    <input type="date" value={signupCloseOverride} onChange={e => setSignupCloseOverride(e.target.value)}
-                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-orange-400" />
+                  {(() => {
+                    const win = events.length > 0 && coord ? (() => {
+                      const todayStr = new Date().toISOString().slice(0, 10);
+                      const upcoming = events.filter(e => e.date >= todayStr).sort((a,b) => a.date.localeCompare(b.date));
+                      if (!upcoming.length) return null;
+                      const ed = new Date(upcoming[0].date + 'T00:00:00');
+                      const dow = ed.getDay();
+                      const close = new Date(ed); close.setDate(close.getDate() - (dow === 0 ? 0 : dow));
+                      const em = ed.getMonth(); const ey = ed.getFullYear();
+                      const open = new Date(em === 0 ? ey-1 : ey, em === 0 ? 11 : em-1, 16);
+                      return { open, close };
+                    })() : null;
+                    return win ? (
+                      <p className="text-xs text-green-700">
+                        Opens <strong>{win.open.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</strong>
+                        {' · '}Closes <strong>{win.close.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</strong>
+                        {' '}(Sunday before next delivery)
+                      </p>
+                    ) : (
+                      <p className="text-xs text-green-700">Opens 16th of previous month · Closes Sunday of delivery week</p>
+                    );
+                  })()}
+                  <button
+                    onClick={() => setSignupOpenOverride('2000-01-01')}
+                    className="mt-2 text-xs text-green-600 underline hover:text-green-800"
+                  >
+                    Set manual override instead →
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-amber-800 text-sm">⚠️ Manual Override Active</p>
+                      <p className="text-xs text-amber-700 mt-0.5">Auto mode is off — using custom dates below</p>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        setSignupOpenOverride('');
+                        setSignupCloseOverride('');
+                        await updateCoordinator(coordId, {
+                          signup_open_override: null,
+                          signup_close_override: null,
+                        });
+                        const updated = await getCoordinator(coordId);
+                        if (updated) setCoord(updated);
+                        setSettingsSaved(true);
+                        setTimeout(() => setSettingsSaved(false), 2500);
+                      }}
+                      className="flex-shrink-0 bg-green-500 hover:bg-green-600 text-white text-xs font-bold px-3 py-2 rounded-xl transition-colors"
+                    >
+                      🤖 Switch to Auto
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-gray-400 block mb-1">Open date</label>
+                      <input type="date" value={signupOpenOverride === '2000-01-01' ? '' : signupOpenOverride}
+                        onChange={e => setSignupOpenOverride(e.target.value)}
+                        className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-orange-400" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-400 block mb-1">Close date</label>
+                      <input type="date" value={signupCloseOverride}
+                        onChange={e => setSignupCloseOverride(e.target.value)}
+                        className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-orange-400" />
+                    </div>
                   </div>
                 </div>
-                {(signupOpenOverride || signupCloseOverride) && (
-                  <button onClick={() => { setSignupOpenOverride(''); setSignupCloseOverride(''); }}
-                    className="mt-2 text-sm text-red-400 hover:text-red-600">Clear overrides</button>
-                )}
-              </div>
+              )}
 
               <button onClick={handleSaveSettings} disabled={!settingsName.trim() || settingsLoading}
                 className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-40 text-white py-3 rounded-xl text-base font-semibold transition-colors">
