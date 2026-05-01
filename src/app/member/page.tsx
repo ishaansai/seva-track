@@ -110,6 +110,13 @@ function MemberPageInner() {
       setJustSignedUp({ signup, event });
       setShowForm(null);
       setName(''); setPhone(''); setWantsMeals(true); setWantsNutritional(false);
+      // If coordinator wants signup notifications, auto-open WA pre-filled to notify them
+      if (coord?.notify_on_signup && coord.phone) {
+        const msg = encodeURIComponent(
+          `Hi! ${name.trim()} just signed up to deliver ${itemTypeLabel(itemType)} on ${formatDate(event.date)} for Seva Commons. 🎉`
+        );
+        window.open(`https://wa.me/${coord.phone}?text=${msg}`, '_blank');
+      }
     } catch {
       alert('Could not sign up — you may already be signed up for this date.');
     } finally {

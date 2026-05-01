@@ -132,6 +132,9 @@ export default function AdminDashboard() {
   const [dropOffLocation, setDropOffLocation] = useState('');
   const [newNote, setNewNote] = useState('');
   const [createLoading, setCreateLoading] = useState(false);
+  // Recurring events
+  const [repeatMonthly, setRepeatMonthly] = useState(false);
+  const [repeatMonths, setRepeatMonths] = useState(3);
 
   // Edit event state
   const [editingSlots, setEditingSlots] = useState(false);
@@ -157,6 +160,11 @@ export default function AdminDashboard() {
   const [settingsAddress, setSettingsAddress] = useState('');
   const [settingsSaved, setSettingsSaved] = useState(false);
   const [settingsLoading, setSettingsLoading] = useState(false);
+  const [settingsNotify, setSettingsNotify] = useState(false);
+
+  // Share list modal
+  const [showShareList, setShowShareList] = useState(false);
+  const [shareListCopied, setShareListCopied] = useState(false);
 
   // Signup window settings
   const [signupOpenDay, setSignupOpenDay] = useState(15);
@@ -197,6 +205,7 @@ export default function AdminDashboard() {
     setSignupOpenDay(profile.signup_open_day ?? 15);
     setSignupOpenOverride(profile.signup_open_override ?? '');
     setSignupCloseOverride(profile.signup_close_override ?? '');
+    setSettingsNotify(profile.notify_on_signup ?? false);
     setEvents(evs.sort((a, b) => a.date.localeCompare(b.date)));
     setSignups(sups);
     setContributions(contribs);
@@ -227,7 +236,19 @@ export default function AdminDashboard() {
     const validDates = newDates.filter(d => d.trim());
     if (validDates.length === 0) return;
     setCreateLoading(true);
-    await Promise.all(validDates.map(date => addEvent({
+    // Build full list of dates including monthly repeats
+    const allDates: string[] = [];
+    for (const dateStr of validDates) {
+      allDates.push(dateStr);
+      if (repeatMonthly) {
+        for (let m = 1; m < repeatMonths; m++) {
+          const d = new Date(dateStr + 'T00:00:00');
+          d.setMonth(d.getMonth() + m);
+          allDates.push(d.toISOString().slice(0, 10));
+        }
+      }
+    }
+    await Promise.all(allDates.map(date => addEvent({
       date,
       meal_bag_slots: mealBagSlots,
       nutritional_slots: nutritionalSlots,
@@ -238,6 +259,8 @@ export default function AdminDashboard() {
     }, coordId)));
     setNewDates(['', '', '', '']);
     setNewNote('');
+    setRepeatMonthly(false);
+    setRepeatMonths(3);
     setDropOffLocation(coord?.address || '');
     await refresh();
     setCreateLoading(false);
@@ -262,6 +285,7 @@ export default function AdminDashboard() {
     setEditingSlots(false);
     setShowNudge(false);
     setShowAddMember(false);
+    setShowShareList(false);
   }
 
   async function saveEventEdits(id: string) {
@@ -327,6 +351,7 @@ export default function AdminDashboard() {
         signup_open_day:      signupOpenDay,
         signup_open_override:  signupOpenOverride.trim()  || null,
         signup_close_override: signupCloseOverride.trim() || null,
+        notify_on_signup: settingsNotify,
       });
       // Change password separately via Supabase Auth (only if provided)
       if (settingsPassword.trim()) {
@@ -392,6 +417,26 @@ export default function AdminDashboard() {
     navigator.clipboard.writeText(lines.join('\n'));
     setSummaryCopied(true);
     setTimeout(() => setSummaryCopied(false), 2500);
+  }
+
+  function buildShareText(event: SevaEvent, eventSignupList: Signup[]): string {
+    const lines: string[] = [];
+    lines.push(`📅 Seva Commons — ${formatDate(event.date)}`);
+    lines.push(`📍 Drop-off: ${formatTime(event.drop_off_start)}–${formatTime(event.drop_off_end)} · ${event.drop_off_location}`);
+    if (event.note) lines.push(`📌 ${event.note}`);
+    lines.push('');
+    const delivered = eventSignupList.filter(s => s.status === 'delivered').length;
+    lines.push(`✅ ${delivered} delivered · ⏳ ${eventSignupList.length - delivered} pending`);
+    lines.push('');
+    eventSignupList
+      .sort((a, b) => (a.status === 'delivered' ? 1 : 0) - (b.status === 'delivered' ? 1 : 0))
+      .forEach((s, i) => {
+        const icon = s.status === 'delivered' ? '✅' : '⏳';
+        lines.push(`${i + 1}. ${s.member_name} — ${itemTypeLabel(s.item_type)} ${icon}`);
+      });
+    lines.push('');
+    lines.push('🫶 via Seva Track');
+    return lines.join('\n');
   }
 
   const today = new Date().toISOString().slice(0, 10);
@@ -569,6 +614,7 @@ export default function AdminDashboard() {
                 <div className="flex flex-col items-end gap-1.5">
                   <button onClick={() => handleDeleteEvent(selectedEvent)} className="text-sm text-red-400 hover:text-red-600">Delete</button>
                   <button onClick={() => setEditingSlots(!editingSlots)} className="text-sm text-orange-500 font-medium">{editingSlots ? 'Cancel' : 'Edit'}</button>
+                  <button onClick={() => { setShowShareList(true); setShareListCopied(false); }} className="text-sm text-blue-500 font-medium">📋 Share</button>
                 </div>
               </div>
 
@@ -663,6 +709,38 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* Share List Modal */}
+            {showShareList && (
+              <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="font-semibold text-blue-800 text-base">📋 Share Signup List</p>
+                  <button onClick={() => setShowShareList(false)} className="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
+                </div>
+                <pre className="text-xs text-gray-700 bg-white rounded-xl p-3 border border-blue-100 overflow-x-auto whitespace-pre-wrap font-mono leading-relaxed">
+                  {buildShareText(selectedEventData, selectedSignups)}
+                </pre>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(buildShareText(selectedEventData, selectedSignups));
+                      setShareListCopied(true);
+                      setTimeout(() => setShareListCopied(false), 2500);
+                    }}
+                    className="flex-1 bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
+                  >
+                    {shareListCopied ? '✓ Copied!' : '📋 Copy Text'}
+                  </button>
+                  <a
+                    href={`https://wa.me/${coord?.phone ?? ''}?text=${encodeURIComponent(buildShareText(selectedEventData, selectedSignups))}`}
+                    target="_blank" rel="noopener noreferrer"
+                    className="flex-1 flex items-center justify-center gap-1.5 bg-[#25D366] hover:bg-[#1ebe5d] text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
+                  >
+                    💬 Send via WA
+                  </a>
+                </div>
               </div>
             )}
 
@@ -774,14 +852,48 @@ export default function AdminDashboard() {
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:border-orange-400" />
                 <p className="text-sm text-gray-400 mt-1.5">Default: {coord.address}</p>
               </div>
-              <div className="border-t border-gray-100 pt-4 mb-5">
+              <div className="border-t border-gray-100 pt-4 mb-4">
                 <label className="text-sm text-gray-500 font-semibold uppercase tracking-wide block mb-2">📌 Note for Members (optional)</label>
                 <input type="text" placeholder="e.g. Please bring extra brown bags" value={newNote} onChange={e => setNewNote(e.target.value)}
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:border-orange-400" />
               </div>
+
+              {/* Recurring monthly */}
+              <div className="border-t border-gray-100 pt-4 mb-5">
+                <label className="flex items-center gap-3 cursor-pointer select-none">
+                  <div
+                    onClick={() => setRepeatMonthly(v => !v)}
+                    className={`w-11 h-6 rounded-full transition-colors flex-shrink-0 relative ${repeatMonthly ? 'bg-orange-500' : 'bg-gray-200'}`}
+                  >
+                    <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${repeatMonthly ? 'left-5' : 'left-0.5'}`} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-700">🔁 Repeat monthly</p>
+                    <p className="text-xs text-gray-400">Automatically create the same date for upcoming months</p>
+                  </div>
+                </label>
+                {repeatMonthly && (
+                  <div className="mt-3 flex items-center gap-3">
+                    <p className="text-sm text-gray-500 flex-shrink-0">Create for</p>
+                    <select
+                      value={repeatMonths}
+                      onChange={e => setRepeatMonths(Number(e.target.value))}
+                      className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-orange-400"
+                    >
+                      {[2, 3, 4, 5, 6].map(n => (
+                        <option key={n} value={n}>{n} months</option>
+                      ))}
+                    </select>
+                    <p className="text-sm text-gray-400">in a row</p>
+                  </div>
+                )}
+              </div>
+
               <button onClick={handleCreateEvents} disabled={newDates.every(d => !d) || createLoading}
                 className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-40 text-white py-3.5 rounded-xl font-semibold text-base">
-                {createLoading ? 'Creating…' : 'Create Dates'}
+                {createLoading ? 'Creating…' : repeatMonthly
+                  ? `Create ${newDates.filter(d => d).length * repeatMonths} Dates (${repeatMonths} months)`
+                  : 'Create Dates'}
               </button>
             </div>
           </div>
@@ -941,6 +1053,20 @@ export default function AdminDashboard() {
                   <label className="text-sm text-gray-500 font-medium block mb-1">🔐 Change Password (leave blank to keep current)</label>
                   <input type="password" placeholder="New password" value={settingsPassword} onChange={e => setSettingsPassword(e.target.value)}
                     className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400" />
+                </div>
+                <div className="pt-1">
+                  <label className="flex items-center gap-3 cursor-pointer select-none">
+                    <div
+                      onClick={() => setSettingsNotify(v => !v)}
+                      className={`w-11 h-6 rounded-full transition-colors flex-shrink-0 relative ${settingsNotify ? 'bg-orange-500' : 'bg-gray-200'}`}
+                    >
+                      <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${settingsNotify ? 'left-5' : 'left-0.5'}`} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-700">💬 WhatsApp signup notifications</p>
+                      <p className="text-xs text-gray-400">When a member signs up, their WhatsApp will open pre-filled to notify you</p>
+                    </div>
+                  </label>
                 </div>
               </div>
             </div>

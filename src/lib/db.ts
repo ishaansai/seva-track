@@ -18,6 +18,7 @@ export interface CoordinatorProfile {
   signup_open_day: number;       // day of month signups open (default 15)
   signup_open_override:  string | null; // YYYY-MM-DD
   signup_close_override: string | null; // YYYY-MM-DD
+  notify_on_signup: boolean;     // send WhatsApp notification to coordinator on new signup
 }
 
 export interface SevaEvent {
@@ -132,7 +133,7 @@ export async function updateCoordinatorPassword(newPassword: string): Promise<vo
 export async function getCoordinator(id: string): Promise<CoordinatorProfile | null> {
   const { data, error } = await supabase
     .from('coordinators')
-    .select('id,name,email,phone,address,signup_open_day,signup_open_override,signup_close_override')
+    .select('id,name,email,phone,address,signup_open_day,signup_open_override,signup_close_override,notify_on_signup')
     .eq('id', id)
     .single();
   if (error || !data) return null;
@@ -142,7 +143,7 @@ export async function getCoordinator(id: string): Promise<CoordinatorProfile | n
 export async function getCoordinatorByUserId(userId: string): Promise<CoordinatorProfile | null> {
   const { data, error } = await supabase
     .from('coordinators')
-    .select('id,name,email,phone,address,signup_open_day,signup_open_override,signup_close_override')
+    .select('id,name,email,phone,address,signup_open_day,signup_open_override,signup_close_override,notify_on_signup')
     .eq('user_id', userId)
     .single();
   if (error || !data) return null;
@@ -153,7 +154,7 @@ export async function getCoordinatorByUserId(userId: string): Promise<Coordinato
 export async function getDefaultCoordinator(): Promise<CoordinatorProfile | null> {
   const { data, error } = await supabase
     .from('coordinators')
-    .select('id,name,email,phone,address,signup_open_day,signup_open_override,signup_close_override')
+    .select('id,name,email,phone,address,signup_open_day,signup_open_override,signup_close_override,notify_on_signup')
     .order('created_at', { ascending: true })
     .limit(1)
     .single();
