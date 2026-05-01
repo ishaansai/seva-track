@@ -39,6 +39,8 @@ function MemberPageInner() {
   const [wantsMeals, setWantsMeals] = useState(true);
   const [wantsNutritional, setWantsNutritional] = useState(false);
   const [justSignedUp, setJustSignedUp] = useState<SignupResult | null>(null);
+  // Track which event IDs THIS browser session signed up for (not all signups)
+  const [mySignedUpEventIds, setMySignedUpEventIds] = useState<Set<string>>(new Set());
   const [signupLoading, setSignupLoading] = useState(false);
   const [view, setView] = useState<'signup' | 'deliver'>('signup');
   const [deliverPhone, setDeliverPhone] = useState('');
@@ -108,6 +110,7 @@ function MemberPageInner() {
       const sups = await getSignups(coordId);
       setSignups(sups);
       setJustSignedUp({ signup, event });
+      setMySignedUpEventIds(prev => new Set([...prev, event.id]));
       setShowForm(null);
       setName(''); setPhone(''); setWantsMeals(true); setWantsNutritional(false);
       // If coordinator wants signup notifications, auto-open WA pre-filled to notify them
@@ -165,7 +168,8 @@ function MemberPageInner() {
     return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
   }
 
-  const signedUpEventIds = new Set(signups.map(s => s.event_id));
+  // NOTE: intentionally NOT using all DB signups here — only this session's signups
+  // so "You're signed up!" only shows to the person who actually signed up, not everyone
 
   if (loading) {
     return (
@@ -359,8 +363,8 @@ function MemberPageInner() {
 
                     {visibleEvents.map(event => {
                       const slots = getSlotInfo(event);
-                      const alreadyIn = signedUpEventIds.has(event.id);
-                      const mySignup = signups.find(s => s.event_id === event.id);
+                      const alreadyIn = mySignedUpEventIds.has(event.id);
+                      const mySignup = signups.find(s => s.event_id === event.id && mySignedUpEventIds.has(event.id));
                       const totalSlots = event.meal_bag_slots + event.nutritional_slots;
                       const totalUsed = slots.mealBagUsed + slots.nutritionalUsed;
                       const isFull = slots.mealBagAvail === 0 && slots.nutritionalAvail === 0;
