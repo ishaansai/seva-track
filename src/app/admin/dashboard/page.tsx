@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import {
   getEvents, getSignups, addEvent, deleteEvent, updateEvent,
-  addSignup, adminMarkDelivered, removeSignup, getSlotsUsed,
+  addSignup, adminMarkDelivered, undoDelivery, removeSignup, getSlotsUsed,
   getCoordinator, getCoordinatorByUserId, updateCoordinator,
   updateCoordinatorPassword, signOutCoordinator,
   getMemberContributions, setMemberAdjustment, downloadCsv,
@@ -103,6 +104,9 @@ export default function AdminDashboard() {
   const [events, setEvents] = useState<SevaEvent[]>([]);
   const [signups, setSignups] = useState<Signup[]>([]);
   const [contributions, setContributions] = useState<MemberContribution[]>([]);
+
+  // CSV export month filter
+  const [csvMonth, setCsvMonth] = useState('');
 
   // Manual adjustment edit state
   const [editingMember, setEditingMember]         = useState<string | null>(null); // member_phone
@@ -277,6 +281,12 @@ export default function AdminDashboard() {
 
   async function handleAdminMarkDelivered(signupId: string) {
     await adminMarkDelivered(signupId);
+    await refresh();
+  }
+
+  async function handleUndoDelivery(signupId: string) {
+    if (!confirm('Undo this delivery? It will go back to pending.')) return;
+    await undoDelivery(signupId);
     await refresh();
   }
 
@@ -484,14 +494,29 @@ export default function AdminDashboard() {
                 </button>
               )}
               {totalSignups > 0 && (
-                <button onClick={() => downloadCsv(events, signups)}
-                  className="flex-1 bg-white border border-gray-200 rounded-2xl px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                  <div className="text-left">
-                    <p className="text-sm font-semibold text-gray-800">Export CSV</p>
-                    <p className="text-xs text-gray-400">For records / taxes</p>
+                <div className="flex-1 bg-white border border-gray-200 rounded-2xl px-4 py-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">Export CSV</p>
+                      <p className="text-xs text-gray-400">For records / taxes</p>
+                    </div>
+                    <button onClick={() => downloadCsv(events, signups, csvMonth || undefined)}
+                      className="bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold px-3 py-1.5 rounded-lg transition-colors">
+                      ⬇ Export
+                    </button>
                   </div>
-                  <span className="text-sm text-orange-500 font-medium">⬇</span>
-                </button>
+                  <div className="flex items-center gap-2">
+                    <select value={csvMonth} onChange={e => setCsvMonth(e.target.value)}
+                      className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-gray-700 focus:outline-none focus:border-orange-400">
+                      <option value="">All time</option>
+                      {Array.from(new Set(events.map(e => e.date.slice(0, 7)))).sort().reverse().map(m => (
+                        <option key={m} value={m}>
+                          {new Date(m + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
               )}
             </div>
 
@@ -675,14 +700,19 @@ export default function AdminDashboard() {
                       </div>
                       {signup.delivery_photo_url && (
                         <div className="mt-3 rounded-xl overflow-hidden border border-green-100">
-                          <img src={signup.delivery_photo_url} alt="Delivery" className="w-full max-h-52 object-cover" />
+                          <Image src={signup.delivery_photo_url} alt="Delivery" width={600} height={208} unoptimized className="w-full max-h-52 object-cover" />
                         </div>
                       )}
                       <div className="flex gap-2 mt-3">
-                        {signup.status === 'pending' && (
+                        {signup.status === 'pending' ? (
                           <button onClick={() => handleAdminMarkDelivered(signup.id)}
                             className="flex-1 bg-green-50 hover:bg-green-100 text-green-700 text-sm font-semibold py-2.5 rounded-xl border border-green-200 transition-colors">
                             ✓ Mark Delivered
+                          </button>
+                        ) : (
+                          <button onClick={() => handleUndoDelivery(signup.id)}
+                            className="flex-1 bg-amber-50 hover:bg-amber-100 text-amber-700 text-sm font-semibold py-2.5 rounded-xl border border-amber-200 transition-colors">
+                            ↩ Undo Delivery
                           </button>
                         )}
                         <button onClick={() => handleRemoveSignup(signup.id)}

@@ -280,6 +280,14 @@ export async function adminMarkDelivered(signupId: string): Promise<void> {
   }).eq('id', signupId);
 }
 
+export async function undoDelivery(signupId: string): Promise<void> {
+  await supabase.from('signups').update({
+    status: 'pending',
+    delivery_photo_url: null,
+    delivered_at: null,
+  }).eq('id', signupId);
+}
+
 // ─── Slot counting (client-side, from already-loaded signups) ─────────────────
 
 export function getSlotsUsed(eventId: string, signups: Signup[]) {
@@ -348,7 +356,12 @@ export async function setMemberAdjustment(data: {
 
 // ─── CSV export ───────────────────────────────────────────────────────────────
 
-export function downloadCsv(events: SevaEvent[], signups: Signup[]): void {
+export function downloadCsv(events: SevaEvent[], signups: Signup[], monthFilter?: string): void {
+  // monthFilter format: 'YYYY-MM' — if provided, only include signups for that month
+  if (monthFilter) {
+    const filteredEventIds = new Set(events.filter(e => e.date.startsWith(monthFilter)).map(e => e.id));
+    signups = signups.filter(s => filteredEventIds.has(s.event_id));
+  }
   const rows: string[][] = [
     ['Date', 'Member Name', 'Phone', 'Item Type', 'Meal Bags', 'Status',
      'Signed Up At', 'Delivered At', 'Drop-Off Location'],

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { getSignupById, getEvents, markDelivered, uploadDeliveryPhoto, itemTypeLabel, Signup, SevaEvent } from '@/lib/db';
 
 function formatDate(dateStr: string) {
@@ -41,7 +42,22 @@ function DeliverPageInner() {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = ev => setPhoto(ev.target?.result as string);
+    reader.onload = ev => {
+      const dataUrl = ev.target?.result as string;
+      // Compress to max 1200px wide, 75% quality (~200-400KB instead of 3-5MB)
+      const img = new window.Image();
+      img.onload = () => {
+        const MAX = 1200;
+        const scale = Math.min(1, MAX / img.width);
+        const canvas = document.createElement('canvas');
+        canvas.width  = Math.round(img.width  * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        setPhoto(canvas.toDataURL('image/jpeg', 0.75));
+      };
+      img.src = dataUrl;
+    };
     reader.readAsDataURL(file);
   }
 
@@ -101,7 +117,7 @@ function DeliverPageInner() {
             <p className="text-gray-400 text-base">Your delivery has been logged</p>
             {photo && (
               <div className="mt-6 rounded-2xl overflow-hidden border border-green-200 max-w-xs mx-auto shadow-sm">
-                <img src={photo} alt="Delivery confirmation" className="w-full" />
+                <Image src={photo} alt="Delivery confirmation" width={320} height={240} unoptimized className="w-full h-auto" />
               </div>
             )}
             <Link href={backUrl} className="mt-6 inline-block bg-orange-500 text-white px-8 py-3 rounded-2xl font-semibold text-base hover:bg-orange-600 transition-colors">
@@ -125,7 +141,7 @@ function DeliverPageInner() {
               </p>
               {photo ? (
                 <div className="relative">
-                  <img src={photo} alt="Preview" className="w-full rounded-xl object-cover max-h-72" />
+                  <Image src={photo} alt="Preview" width={600} height={400} unoptimized className="w-full rounded-xl object-cover max-h-72" />
                   <button onClick={() => setPhoto(null)} className="absolute top-2 right-2 bg-black/50 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm hover:bg-black/70">✕</button>
                 </div>
               ) : (

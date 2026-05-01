@@ -42,8 +42,9 @@ function MemberPageInner() {
   const [signupLoading, setSignupLoading] = useState(false);
   const [view, setView] = useState<'signup' | 'deliver'>('signup');
   const [deliverPhone, setDeliverPhone] = useState('');
-  const [mySignups, setMySignups] = useState<Signup[] | null>(null);
-  const [findLoading, setFindLoading] = useState(false);
+  const [mySignups,      setMySignups]      = useState<Signup[] | null>(null);
+  const [myPastSignups,  setMyPastSignups]  = useState<Signup[]>([]);
+  const [findLoading,    setFindLoading]    = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -121,10 +122,9 @@ function MemberPageInner() {
     if (!cleaned) return;
     setFindLoading(true);
     const allSignups = await getSignups(coordId);
-    const sups = allSignups.filter(
-      s => s.member_phone.replace(/\D/g, '') === cleaned && s.status === 'pending'
-    );
-    setMySignups(sups);
+    const mine = allSignups.filter(s => s.member_phone.replace(/\D/g, '') === cleaned);
+    setMySignups(mine.filter(s => s.status === 'pending'));
+    setMyPastSignups(mine.filter(s => s.status === 'delivered'));
     setFindLoading(false);
   }
 
@@ -150,6 +150,12 @@ function MemberPageInner() {
     if (!justSignedUp) return '#';
     const { signup, event } = justSignedUp;
     return googleCalendarUrl(event.date, signup.member_name, itemTypeLabel(signup.item_type), event.drop_off_start, event.drop_off_end, event.drop_off_location);
+  }
+
+  function daysUntil(date: Date): number {
+    const now = new Date();
+    const diff = date.getTime() - now.getTime();
+    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
   }
 
   const signedUpEventIds = new Set(signups.map(s => s.event_id));
@@ -218,6 +224,25 @@ function MemberPageInner() {
                   </p>
                 </div>
 
+                {/* WhatsApp confirmation — send a quick note to the coordinator */}
+                {coord?.phone && (
+                  <a
+                    href={`https://wa.me/${coord.phone}?text=${encodeURIComponent(
+                      `Hi! I just signed up to deliver ${itemTypeLabel(justSignedUp.signup.item_type)} on ${formatDate(justSignedUp.event.date)} for Seva Commons. 🫶`
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full flex items-center gap-3 p-4 rounded-2xl bg-[#25D366] hover:bg-[#1ebe5d] text-white transition-colors shadow-sm"
+                  >
+                    <span className="text-2xl">💬</span>
+                    <div className="flex-1">
+                      <p className="text-base font-bold">Send WhatsApp confirmation</p>
+                      <p className="text-sm opacity-90">Let the coordinator know you&apos;re in!</p>
+                    </div>
+                    <span className="text-lg">↗</span>
+                  </a>
+                )}
+
                 <div className="bg-white rounded-2xl p-4 shadow-sm border border-orange-100">
                   <p className="font-semibold text-gray-800 text-base mb-1">Add to Calendar</p>
                   <p className="text-sm text-gray-400 mb-4">So you don&apos;t forget! Pick your calendar app:</p>
@@ -276,6 +301,21 @@ function MemberPageInner() {
                     </p>
                   </div>
                 )}
+                {coord && signupOpen && signupWindow && (() => {
+                  const days = daysUntil(signupWindow.close);
+                  const closeLabel = days === 0 ? 'Closes today!' : days === 1 ? 'Closes tomorrow!' : `Closes in ${days} day${days !== 1 ? 's' : ''}`;
+                  return (
+                    <div className="mt-4 bg-green-50 border border-green-200 rounded-2xl px-4 py-3 flex items-center gap-3">
+                      <span className="text-2xl">✅</span>
+                      <div>
+                        <p className="font-semibold text-green-800 text-base">Sign-ups are open!</p>
+                        <p className="text-sm text-green-600 mt-0.5">
+                          {closeLabel} · {signupWindow.close.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Drop-off banner with coordinator contact */}
                 <div className="mt-4 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
@@ -404,10 +444,10 @@ function MemberPageInner() {
               </div>
             </div>
 
-            {mySignups !== null && mySignups.length === 0 && (
+            {mySignups !== null && mySignups.length === 0 && myPastSignups.length === 0 && (
               <div className="text-center py-10 text-gray-400">
                 <div className="text-4xl mb-2">🔍</div>
-                <p className="font-medium text-lg">No pending deliveries found</p>
+                <p className="font-medium text-lg">No deliveries found</p>
                 <p className="text-base mt-1">Make sure you enter the phone number you signed up with</p>
               </div>
             )}
@@ -440,6 +480,42 @@ function MemberPageInner() {
                     </div>
                   );
                 })}
+              </div>
+            )}
+            {myPastSignups.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm text-gray-500 font-semibold uppercase tracking-wide px-1">Your Delivery History</p>
+                {myPastSignups.map(signup => {
+                  const event = events.find(e => e.id === signup.event_id);
+                  const bags  = signup.item_type === 'meals' || signup.item_type === 'both' ? 25 : 0;
+                  return (
+                    <div key={signup.id} className="bg-white rounded-2xl p-4 shadow-sm border border-green-100 flex items-center justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-green-500 font-bold">✓</span>
+                          <p className="font-semibold text-gray-800 text-base">{event ? formatDate(event.date) : 'Past delivery'}</p>
+                        </div>
+                        <p className="text-sm text-orange-600 mt-0.5">{itemTypeLabel(signup.item_type)}</p>
+                        {signup.delivered_at && (
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            Delivered {new Date(signup.delivered_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </p>
+                        )}
+                      </div>
+                      {bags > 0 && (
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-xl font-bold text-purple-600">{bags}</p>
+                          <p className="text-xs text-gray-400">bags</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                <div className="bg-purple-50 border border-purple-100 rounded-2xl p-3 text-center">
+                  <p className="text-sm font-semibold text-purple-700">
+                    🫶 Total: {myPastSignups.reduce((sum, s) => sum + (s.item_type === 'meals' || s.item_type === 'both' ? 25 : 0), 0)} meal bags delivered
+                  </p>
+                </div>
               </div>
             )}
           </div>
