@@ -100,7 +100,7 @@ export function isSignupOpen(coord: CoordinatorProfile): boolean {
 
 const DEFAULT_ADDRESS  = '925 Roselma Pl, Pleasanton CA 94566';
 const DEFAULT_PHONE    = '9258904273';
-const DEFAULT_COORD_ID = 'seva2026';
+const DEFAULT_COORD_ID = ''; // unused — getDefaultCoordinator() queries the DB dynamically
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
@@ -149,8 +149,16 @@ export async function getCoordinatorByUserId(userId: string): Promise<Coordinato
   return data as CoordinatorProfile;
 }
 
+/** Returns the first coordinator in the DB — used as fallback when no ?coord= param is in the URL. */
 export async function getDefaultCoordinator(): Promise<CoordinatorProfile | null> {
-  return getCoordinator(DEFAULT_COORD_ID);
+  const { data, error } = await supabase
+    .from('coordinators')
+    .select('id,name,email,phone,address,signup_open_day,signup_open_override,signup_close_override')
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .single();
+  if (error || !data) return null;
+  return data as CoordinatorProfile;
 }
 
 /** Registration is handled server-side via /api/auth/register to keep the

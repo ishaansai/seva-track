@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   getEvents, getSignups, addSignup, removeSignup, getSlotsUsed,
-  getCoordinator, isSignupOpen, getSignupWindow,
+  getCoordinator, getDefaultCoordinator, isSignupOpen, getSignupWindow,
   SevaEvent, Signup, ItemType, itemTypeLabel, CoordinatorProfile,
 } from '@/lib/db';
 import { generateIcs, formatTime, ReminderOffset } from '@/lib/ics';
@@ -25,9 +25,10 @@ type SignupResult = { signup: Signup; event: SevaEvent };
 
 function MemberPageInner() {
   const searchParams = useSearchParams();
-  const coordId = searchParams.get('coord') ?? 'seva2024';
+  const coordParam  = searchParams.get('coord');
   const monthFilter = searchParams.get('month');
 
+  const [coordId, setCoordId] = useState<string>('');
   const [coord, setCoord] = useState<CoordinatorProfile | null>(null);
   const [events, setEvents] = useState<SevaEvent[]>([]);
   const [signups, setSignups] = useState<Signup[]>([]);
@@ -47,18 +48,23 @@ function MemberPageInner() {
   useEffect(() => {
     async function load() {
       setLoading(true);
-      const [profile, evs, sups] = await Promise.all([
-        getCoordinator(coordId),
-        getEvents(coordId),
-        getSignups(coordId),
+      // If no ?coord= in URL, fall back to the first coordinator in the DB
+      const profile = coordParam
+        ? await getCoordinator(coordParam)
+        : await getDefaultCoordinator();
+      if (!profile) { setLoading(false); return; }
+      setCoordId(profile.id);
+      const [evs, sups] = await Promise.all([
+        getEvents(profile.id),
+        getSignups(profile.id),
       ]);
-      setCoord(profile ?? null);
+      setCoord(profile);
       setEvents(evs.sort((a, b) => a.date.localeCompare(b.date)));
       setSignups(sups);
       setLoading(false);
     }
     load();
-  }, [coordId]);
+  }, [coordParam]);
 
   const today = new Date().toISOString().slice(0, 10);
   let visibleEvents = events.filter(e => e.date >= today);
