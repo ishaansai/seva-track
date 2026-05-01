@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   getEvents, getSignups, addSignup, removeSignup, getSlotsUsed,
-  getCoordinator, getDefaultCoordinator, isSignupOpen, getSignupWindow,
+  getCoordinator, getDefaultCoordinator, getSignupWindow, getSignupWindowFromEvents,
   SevaEvent, Signup, ItemType, itemTypeLabel, CoordinatorProfile,
 } from '@/lib/db';
 import { generateIcs, googleCalendarUrl, formatTime, ReminderOffset } from '@/lib/ics';
@@ -74,8 +74,9 @@ function MemberPageInner() {
   if (monthFilter) visibleEvents = visibleEvents.filter(e => e.date.startsWith(monthFilter));
 
   // Signup window
-  const signupOpen = coord ? isSignupOpen(coord) : false;
-  const signupWindow = coord ? getSignupWindow(coord) : null;
+  const now = new Date();
+  const signupWindow = coord && events.length > 0 ? getSignupWindowFromEvents(coord, events) : (coord ? getSignupWindow(coord) : null);
+  const signupOpen = signupWindow ? (now >= signupWindow.open && now <= signupWindow.close) : false;
 
   function getSlotInfo(event: SevaEvent) {
     const { mealBagUsed, nutritionalUsed } = getSlotsUsed(event.id, signups);
@@ -171,6 +172,18 @@ function MemberPageInner() {
   // NOTE: intentionally NOT using all DB signups here — only this session's signups
   // so "You're signed up!" only shows to the person who actually signed up, not everyone
 
+  // Detect if we're in the delivery week (Sunday through event day)
+  const todayStr = today;
+  const thisWeekEvents = events.filter(e => {
+    const ed = new Date(e.date + 'T00:00:00');
+    const dow = ed.getDay();
+    const sunday = new Date(ed);
+    sunday.setDate(sunday.getDate() - (dow === 0 ? 0 : dow));
+    const sunStr = sunday.toISOString().slice(0, 10);
+    return todayStr >= sunStr && todayStr <= e.date;
+  });
+  const isDeliveryWeek = thisWeekEvents.length > 0;
+
   if (loading) {
     return (
       <div className="min-h-screen bg-orange-50 flex items-center justify-center">
@@ -235,25 +248,6 @@ function MemberPageInner() {
                   </p>
                 </div>
 
-                {/* WhatsApp confirmation — send a quick note to the coordinator */}
-                {coord?.phone && (
-                  <a
-                    href={`https://wa.me/${coord.phone}?text=${encodeURIComponent(
-                      `Hi! I just signed up to deliver ${itemTypeLabel(justSignedUp.signup.item_type)} on ${formatDate(justSignedUp.event.date)} for Seva Commons. 🫶`
-                    )}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full flex items-center gap-3 p-4 rounded-2xl bg-[#25D366] hover:bg-[#1ebe5d] text-white transition-colors shadow-sm"
-                  >
-                    <span className="text-2xl">💬</span>
-                    <div className="flex-1">
-                      <p className="text-base font-bold">Send WhatsApp confirmation</p>
-                      <p className="text-sm opacity-90">Let the coordinator know you&apos;re in!</p>
-                    </div>
-                    <span className="text-lg">↗</span>
-                  </a>
-                )}
-
                 <div className="bg-white rounded-2xl p-4 shadow-sm border border-orange-100">
                   <p className="font-semibold text-gray-800 text-base mb-1">Add to Calendar</p>
                   <p className="text-sm text-gray-400 mb-4">So you don&apos;t forget! Pick your calendar app:</p>
@@ -302,6 +296,42 @@ function MemberPageInner() {
 
             {!justSignedUp && (
               <>
+                {/* Delivery week: show who is delivering instead of signup UI */}
+                {isDeliveryWeek && (
+                  <div className="mt-4 space-y-3">
+                    {thisWeekEvents.map(event => {
+                      const evSignups = signups.filter(s => s.event_id === event.id);
+                      const delivered = evSignups.filter(s => s.status === 'delivered').length;
+                      return (
+                        <div key={event.id} className="bg-white rounded-2xl p-4 shadow-sm border border-purple-100">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-2xl">🚐</span>
+                            <div>
+                              <p className="font-bold text-gray-800 text-base">Delivery is happening this week!</p>
+                              <p className="text-sm text-purple-600 font-medium">{formatDate(event.date)}</p>
+                            </div>
+                          </div>
+                          <div className="flex gap-2 mb-3 flex-wrap">
+                            <span className="text-sm bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">{delivered} delivered</span>
+                            <span className="text-sm bg-amber-100 text-amber-700 px-2 py-1 rounded-full font-medium">{evSignups.length - delivered} pending</span>
+                            <span className="text-sm bg-gray-100 text-gray-600 px-2 py-1 rounded-full font-medium">{evSignups.length} total</span>
+                          </div>
+                          {evSignups.length > 0 && (
+                            <div className="space-y-1.5">
+                              {evSignups.map((s) => (
+                                <div key={s.id} className="flex items-center gap-2">
+                                  <span className={s.status === 'delivered' ? 'text-green-500' : 'text-amber-400'}>{s.status === 'delivered' ? '✅' : '⏳'}</span>
+                                  <p className="text-sm text-gray-700">{s.member_name} — {itemTypeLabel(s.item_type)}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
                 {/* Signup window banner */}
                 {coord && !signupOpen && signupWindow && (
                   <div className="mt-4 bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3">

@@ -1,6 +1,10 @@
 import Link from 'next/link';
+import { getDefaultCoordinator } from '@/lib/db';
 
-export default function Home() {
+export default async function Home() {
+  const coord = await getDefaultCoordinator();
+  const memberHref = coord ? `/member?coord=${coord.id}` : '/member';
+
   return (
     <main className="min-h-screen bg-gradient-to-b from-orange-50 to-amber-50 flex flex-col">
       <div className="flex-1 flex flex-col items-center justify-center p-6">
@@ -14,7 +18,7 @@ export default function Home() {
 
         <div className="flex flex-col gap-3 w-full max-w-xs">
           <Link
-            href="/member"
+            href={memberHref}
             className="bg-orange-500 hover:bg-orange-600 text-white text-center py-4 px-8 rounded-2xl text-lg font-semibold shadow-md transition-all active:scale-95"
           >
             I&apos;m a Member

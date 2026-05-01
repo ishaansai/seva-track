@@ -99,6 +99,46 @@ export function isSignupOpen(coord: CoordinatorProfile): boolean {
   return now >= open && now <= close;
 }
 
+/**
+ * Smart signup window based on actual event dates:
+ * - Opens the 16th of the month BEFORE the delivery month
+ * - Closes Sunday morning of the delivery week (week containing first upcoming event)
+ * - Admin overrides always win
+ */
+export function getSignupWindowFromEvents(
+  coord: CoordinatorProfile,
+  events: SevaEvent[],
+): { open: Date; close: Date } {
+  if (coord.signup_open_override && coord.signup_close_override) {
+    return {
+      open:  new Date(coord.signup_open_override + 'T00:00:00'),
+      close: new Date(coord.signup_close_override + 'T23:59:59'),
+    };
+  }
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const upcoming = events
+    .filter(e => e.date >= todayStr)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  if (upcoming.length === 0) return getSignupWindow(coord);
+
+  const eventDate = new Date(upcoming[0].date + 'T00:00:00');
+  const dow = eventDate.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+
+  // Close = Sunday 11:59pm of the event's week
+  const close = new Date(eventDate);
+  close.setDate(close.getDate() - (dow === 0 ? 0 : dow));
+  close.setHours(23, 59, 59);
+
+  // Open = 16th of the month before the event month
+  const em = eventDate.getMonth(); // 0-indexed
+  const ey = eventDate.getFullYear();
+  const open = new Date(em === 0 ? ey - 1 : ey, em === 0 ? 11 : em - 1, 16, 0, 0, 0);
+
+  return { open, close };
+}
+
 const DEFAULT_ADDRESS  = '925 Roselma Pl, Pleasanton CA 94566';
 const DEFAULT_PHONE    = '9258904273';
 const DEFAULT_COORD_ID = ''; // unused — getDefaultCoordinator() queries the DB dynamically

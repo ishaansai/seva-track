@@ -38,17 +38,27 @@ const HOW_IT_WORKS = [
 
 function LogisticsPageInner() {
   const searchParams = useSearchParams();
-  const coordId = searchParams.get('coord') ?? 'seva2024';
+  const coordParam = searchParams.get('coord');
   const [tab, setTab] = useState<'guide' | 'pdf'>('guide');
   const [coord, setCoord] = useState<CoordinatorProfile | null>(null);
 
   useEffect(() => {
-    getCoordinator(coordId).then(p => setCoord(p ?? null));
-  }, [coordId]);
+    async function loadCoord() {
+      if (coordParam) {
+        const p = await getCoordinator(coordParam);
+        setCoord(p ?? null);
+      } else {
+        const { getDefaultCoordinator } = await import('@/lib/db');
+        const p = await getDefaultCoordinator();
+        setCoord(p ?? null);
+      }
+    }
+    loadCoord();
+  }, [coordParam]);
 
   const mapsUrl = coord ? `https://maps.apple.com/?q=${encodeURIComponent(coord.address)}` : '';
   const gmapsUrl = coord ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(coord.address)}` : '';
-  const memberUrl = `/member?coord=${coordId}`;
+  const memberUrl = coord ? `/member?coord=${coord.id}` : '/member';
 
   return (
     <div className="min-h-screen bg-orange-50">

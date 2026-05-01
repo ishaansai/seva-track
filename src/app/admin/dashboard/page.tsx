@@ -97,6 +97,48 @@ function checkboxesToItemType(meals: boolean, nutritional: boolean): ItemType | 
   return null;
 }
 
+const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const ORDINALS  = ['','1st','2nd','3rd','4th'];
+
+function getWeekdayPattern(dateStr: string): { day: number; n: number } {
+  const d = new Date(dateStr + 'T00:00:00');
+  const day = d.getDay();
+  const dom = d.getDate();
+  const n   = Math.ceil(dom / 7);
+  const check = new Date(d);
+  check.setDate(dom + 7);
+  return { day, n: check.getMonth() !== d.getMonth() ? -1 : n };
+}
+
+function getNthWeekdayOfMonth(year: number, month: number, weekday: number, n: number): Date {
+  if (n === -1) {
+    const last = new Date(year, month + 1, 0);
+    return new Date(year, month, last.getDate() - (last.getDay() - weekday + 7) % 7);
+  }
+  const first = new Date(year, month, 1);
+  return new Date(year, month, 1 + (weekday - first.getDay() + 7) % 7 + (n - 1) * 7);
+}
+
+function getPatternLabel(dateStr: string): string {
+  if (!dateStr) return '';
+  const { day, n } = getWeekdayPattern(dateStr);
+  const ord = n === -1 ? 'Last' : (ORDINALS[n] ?? `${n}th`);
+  return `${ord} ${DAY_NAMES[day]} of each month`;
+}
+
+function getRecurringPreview(dateStr: string, months: number): string[] {
+  if (!dateStr) return [];
+  const { day, n } = getWeekdayPattern(dateStr);
+  const base  = new Date(dateStr + 'T00:00:00');
+  const dates = [dateStr];
+  for (let m = 1; m < months; m++) {
+    const tm = base.getMonth() + m;
+    const d  = getNthWeekdayOfMonth(base.getFullYear() + Math.floor(tm / 12), tm % 12, day, n);
+    dates.push(d.toISOString().slice(0, 10));
+  }
+  return dates;
+}
+
 export default function AdminDashboard() {
   const router = useRouter();
   const [coordId, setCoordId] = useState('');
@@ -125,12 +167,12 @@ export default function AdminDashboard() {
 
   // Create form
   const [newDates, setNewDates] = useState(['', '', '', '']);
+  const [newNotes, setNewNotes] = useState(['', '', '', '']);
   const [mealBagSlots, setMealBagSlots] = useState(7);
   const [nutritionalSlots, setNutritionalSlots] = useState(3);
   const [dropOffStart, setDropOffStart] = useState('18:00');
   const [dropOffEnd, setDropOffEnd] = useState('21:00');
   const [dropOffLocation, setDropOffLocation] = useState('');
-  const [newNote, setNewNote] = useState('');
   const [createLoading, setCreateLoading] = useState(false);
   // Recurring events
   const [repeatMonthly, setRepeatMonthly] = useState(false);
@@ -179,7 +221,7 @@ export default function AdminDashboard() {
       if (!profile) { router.push('/admin'); return; }
       setCoordId(profile.id);
       const base = window.location.origin + '/member';
-      setMemberUrl(`${base}?coord=${profile.id}`);
+      setMemberUrl(base);
       loadAll(profile.id);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -233,32 +275,40 @@ export default function AdminDashboard() {
   }
 
   async function handleCreateEvents() {
-    const validDates = newDates.filter(d => d.trim());
-    if (validDates.length === 0) return;
+    const validRows = newDates
+      .map((date, i) => ({ date, note: newNotes[i] }))
+      .filter(r => r.date.trim());
+    if (validRows.length === 0) return;
     setCreateLoading(true);
-    // Build full list of dates including monthly repeats
-    const allDates: string[] = [];
-    for (const dateStr of validDates) {
-      allDates.push(dateStr);
+
+    const allEvents: { date: string; note: string }[] = [];
+    for (const { date, note } of validRows) {
+      allEvents.push({ date, note });
       if (repeatMonthly) {
+        const { day, n } = getWeekdayPattern(date);
+        const base = new Date(date + 'T00:00:00');
         for (let m = 1; m < repeatMonths; m++) {
-          const d = new Date(dateStr + 'T00:00:00');
-          d.setMonth(d.getMonth() + m);
-          allDates.push(d.toISOString().slice(0, 10));
+          const tm = base.getMonth() + m;
+          const next = getNthWeekdayOfMonth(
+            base.getFullYear() + Math.floor(tm / 12), tm % 12, day, n,
+          );
+          allEvents.push({ date: next.toISOString().slice(0, 10), note });
         }
       }
     }
-    await Promise.all(allDates.map(date => addEvent({
+
+    await Promise.all(allEvents.map(({ date, note }) => addEvent({
       date,
       meal_bag_slots: mealBagSlots,
       nutritional_slots: nutritionalSlots,
       drop_off_start: dropOffStart,
       drop_off_end: dropOffEnd,
       drop_off_location: dropOffLocation.trim() || coord?.address || '',
-      note: newNote.trim() || undefined,
+      note: note.trim() || undefined,
     }, coordId)));
+
     setNewDates(['', '', '', '']);
-    setNewNote('');
+    setNewNotes(['', '', '', '']);
     setRepeatMonthly(false);
     setRepeatMonths(3);
     setDropOffLocation(coord?.address || '');
@@ -454,7 +504,7 @@ export default function AdminDashboard() {
   const selectedSignups = selectedEvent ? eventSignups(selectedEvent) : [];
   const pendingSignups = selectedSignups.filter(s => s.status === 'pending');
 
-  const monthLinkUrl = `${memberUrl}&month=${currentMonth}`;
+  const monthLinkUrl = `${memberUrl}?month=${currentMonth}`;
   const waMsg = encodeURIComponent(`Hey! Sign up for this month's Seva Commons meal bag delivery dates:\n${monthLinkUrl}`);
   const waUrl = `https://wa.me/?text=${waMsg}`;
 
@@ -512,6 +562,35 @@ export default function AdminDashboard() {
         {/* ── EVENTS LIST ── */}
         {view === 'events' && !selectedEvent && (
           <div className="space-y-3 mt-2">
+            {/* Delivery week banner */}
+            {(() => {
+              const todayStr2 = new Date().toISOString().slice(0, 10);
+              const thisWeek = events.filter(e => {
+                const ed = new Date(e.date + 'T00:00:00');
+                const dow = ed.getDay();
+                const sun = new Date(ed);
+                sun.setDate(sun.getDate() - (dow === 0 ? 0 : dow));
+                return todayStr2 >= sun.toISOString().slice(0, 10) && todayStr2 <= e.date;
+              });
+              if (thisWeek.length === 0) return null;
+              return (
+                <div className="bg-purple-500 rounded-2xl p-4 text-white">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xl">🚐</span>
+                    <p className="font-bold text-base">Delivery Week!</p>
+                  </div>
+                  {thisWeek.map(e => {
+                    const evSups = signups.filter(s => s.event_id === e.id);
+                    const del = evSups.filter(s => s.status === 'delivered').length;
+                    return (
+                      <div key={e.id} className="mt-1">
+                        <p className="text-purple-100 text-sm">{formatShortDate(e.date)} · {evSups.length} signed up · {del} delivered · {evSups.length - del} pending</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
             <div className="bg-orange-500 rounded-2xl p-4 text-white">
               <p className="font-bold text-base mb-0.5">Member Sign-Up Link</p>
               <p className="text-orange-100 text-sm mb-3">This month only — share with your volunteers</p>
@@ -811,12 +890,21 @@ export default function AdminDashboard() {
             <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
               <h2 className="font-bold text-gray-800 text-lg mb-1">Add Delivery Dates</h2>
               <p className="text-sm text-gray-400 mb-4">Settings apply to all dates below</p>
-              <div className="space-y-2 mb-4">
+              <div className="space-y-3 mb-4">
                 {newDates.map((date, i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <span className="text-sm text-gray-400 w-14 flex-shrink-0">Date {i + 1}</span>
-                    <input type="date" value={date} onChange={e => { const u = [...newDates]; u[i] = e.target.value; setNewDates(u); }}
-                      className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:border-orange-400" />
+                  <div key={i} className="space-y-1.5">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm text-gray-400 w-14 flex-shrink-0">Date {i+1}</span>
+                      <input type="date" value={date}
+                        onChange={e => { const u=[...newDates]; u[i]=e.target.value; setNewDates(u); }}
+                        className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:border-orange-400" />
+                    </div>
+                    {date && (
+                      <input type="text" placeholder="📌 Note for this date (optional)"
+                        value={newNotes[i]}
+                        onChange={e => { const u=[...newNotes]; u[i]=e.target.value; setNewNotes(u); }}
+                        className="ml-[68px] w-[calc(100%-68px)] border border-orange-100 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-orange-400 bg-orange-50 placeholder-orange-300" />
+                    )}
                   </div>
                 ))}
               </div>
@@ -852,13 +940,7 @@ export default function AdminDashboard() {
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:border-orange-400" />
                 <p className="text-sm text-gray-400 mt-1.5">Default: {coord.address}</p>
               </div>
-              <div className="border-t border-gray-100 pt-4 mb-4">
-                <label className="text-sm text-gray-500 font-semibold uppercase tracking-wide block mb-2">📌 Note for Members (optional)</label>
-                <input type="text" placeholder="e.g. Please bring extra brown bags" value={newNote} onChange={e => setNewNote(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:border-orange-400" />
-              </div>
-
-              {/* Recurring monthly */}
+              {/* Recurring monthly — smart weekday pattern */}
               <div className="border-t border-gray-100 pt-4 mb-5">
                 <label className="flex items-center gap-3 cursor-pointer select-none">
                   <div
@@ -868,23 +950,46 @@ export default function AdminDashboard() {
                     <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${repeatMonthly ? 'left-5' : 'left-0.5'}`} />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-gray-700">🔁 Repeat monthly</p>
-                    <p className="text-xs text-gray-400">Automatically create the same date for upcoming months</p>
+                    <p className="text-sm font-semibold text-gray-700">🔁 Repeat monthly (same weekday)</p>
+                    <p className="text-xs text-gray-400">e.g. every 1st Tuesday — keeps the right day of week each month</p>
                   </div>
                 </label>
                 {repeatMonthly && (
-                  <div className="mt-3 flex items-center gap-3">
-                    <p className="text-sm text-gray-500 flex-shrink-0">Create for</p>
-                    <select
-                      value={repeatMonths}
-                      onChange={e => setRepeatMonths(Number(e.target.value))}
-                      className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-orange-400"
-                    >
-                      {[2, 3, 4, 5, 6].map(n => (
-                        <option key={n} value={n}>{n} months</option>
-                      ))}
-                    </select>
-                    <p className="text-sm text-gray-400">in a row</p>
+                  <div className="mt-3 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <p className="text-sm text-gray-500 flex-shrink-0">For</p>
+                      <select
+                        value={repeatMonths}
+                        onChange={e => setRepeatMonths(Number(e.target.value))}
+                        className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-orange-400"
+                      >
+                        {[2,3,4,5,6].map(n => (
+                          <option key={n} value={n}>{n} months</option>
+                        ))}
+                      </select>
+                      <p className="text-sm text-gray-400">months in a row</p>
+                    </div>
+                    {/* Preview per filled date */}
+                    {newDates.some(d => d) && (
+                      <div className="space-y-2">
+                        {newDates.filter(d => d).map(dateStr => {
+                          const preview = getRecurringPreview(dateStr, repeatMonths);
+                          const label   = getPatternLabel(dateStr);
+                          return (
+                            <div key={dateStr} className="bg-orange-50 border border-orange-100 rounded-xl p-3">
+                              <p className="text-xs font-semibold text-orange-700 mb-1">🔁 {label}</p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {preview.map(d => (
+                                  <span key={d} className="text-xs bg-white border border-orange-200 text-orange-700 px-2 py-0.5 rounded-full">
+                                    {new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1120,20 +1225,106 @@ export default function AdminDashboard() {
 
         {/* ── LOGISTICS ── */}
         {view === 'logistics' && (
-          <div className="mt-2 space-y-3">
-            <div className="bg-green-50 border border-green-200 rounded-2xl p-4 flex gap-3 items-start">
-              <span className="text-xl flex-shrink-0">✅</span>
-              <div>
-                <p className="font-bold text-green-800 text-base">Auto-loaded from PDF</p>
-                <p className="text-sm text-green-700 mt-0.5">Members always see the latest guide at <span className="font-mono">/logistics</span>. To update, replace <span className="font-mono">public/logistics.pdf</span>.</p>
+          <div className="mt-2 space-y-4">
+            {/* Coordinator contact */}
+            <div className="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden">
+              <div className="bg-orange-500 px-4 py-2.5">
+                <p className="text-white font-bold text-base">Coordinator Contact</p>
+              </div>
+              <div className="flex items-center justify-between px-4 py-3">
+                <div>
+                  <p className="font-semibold text-gray-800 text-base">{coord.name}</p>
+                  <p className="text-sm text-gray-400">For questions &amp; drop-off info</p>
+                </div>
+                <div className="flex gap-2">
+                  <a href={`tel:${coord.phone}`} className="flex items-center gap-1.5 bg-green-50 text-green-700 border border-green-200 px-3 py-2 rounded-xl text-sm font-semibold hover:bg-green-100">📞 Call</a>
+                  <a href={`https://wa.me/${coord.phone}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 bg-green-500 text-white px-3 py-2 rounded-xl text-sm font-semibold hover:bg-green-600">💬 WA</a>
+                </div>
               </div>
             </div>
+
+            {/* How it works */}
+            <div className="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden">
+              <div className="bg-orange-100 px-4 py-2.5">
+                <p className="text-orange-800 font-bold text-base">How It Works</p>
+              </div>
+              <div className="px-4 py-3 space-y-3">
+                {[
+                  { icon: '📅', text: "Sign up at the beginning of each month for that month's dates" },
+                  { icon: '🛒', text: 'Shop for ingredients using the list below (most from Costco)' },
+                  { icon: '🥪', text: 'Make 25 PB&J sandwiches + pack 5 items per brown bag' },
+                  { icon: '😷', text: 'Wear a mask and gloves while making and packing' },
+                  { icon: '🏷', text: 'Label bags with Seva or Chirag SJC stickers' },
+                  { icon: '📦', text: "Drop off bags at coordinator's address (see date details)" },
+                  { icon: '🚐', text: 'Bags are delivered to shelters on delivery day' },
+                ].map((step, i) => (
+                  <div key={i} className="flex items-start gap-3">
+                    <div className="w-8 h-8 bg-orange-50 rounded-full flex items-center justify-center flex-shrink-0 text-lg">{step.icon}</div>
+                    <p className="text-sm text-gray-700 pt-1">{step.text}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Each bag */}
+            <div className="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden">
+              <div className="bg-orange-100 px-4 py-2.5 flex items-center justify-between">
+                <p className="text-orange-800 font-bold text-base">Each Bag Contains</p>
+                <span className="bg-orange-500 text-white text-sm font-bold px-2 py-0.5 rounded-full">5 items</span>
+              </div>
+              <div className="grid grid-cols-5 gap-2 p-4">
+                {[
+                  { icon: '🥪', label: 'PB&J Sandwich' },
+                  { icon: '🍊', label: 'Fresh Fruit' },
+                  { icon: '🍟', label: 'Snack Packet' },
+                  { icon: '🍫', label: 'Granola Bar' },
+                  { icon: '🧃', label: 'Juice Drink' },
+                ].map(({ icon, label }) => (
+                  <div key={label} className="text-center">
+                    <div className="bg-orange-50 rounded-xl py-2.5 mb-1.5 text-2xl">{icon}</div>
+                    <p className="text-xs text-gray-600 leading-tight font-medium">{label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Shopping list */}
+            <div className="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden">
+              <div className="bg-orange-100 px-4 py-2.5 flex items-center justify-between">
+                <p className="text-orange-800 font-bold text-base">Shopping List</p>
+                <span className="text-orange-600 text-sm font-medium">For 25 bags · Costco</span>
+              </div>
+              <div className="px-4 py-3 space-y-3">
+                {[
+                  { item: 'Skippy Peanut Butter', qty: '1 bottle' },
+                  { item: 'Kirkland Organic Strawberry Spread', qty: '½ bottle' },
+                  { item: 'Oroweat 100% Whole Wheat Bread', qty: '3 packs (Costco 2-pack)' },
+                  { item: 'Sandwich Ziplock Bags', qty: '25' },
+                  { item: 'Cuties (clementines)', qty: '1 bag' },
+                  { item: 'Nature Valley Crunchy Granola Bar', qty: '25' },
+                  { item: 'Frito Lay Fun Flavor Mix', qty: '25' },
+                  { item: 'Honest Kids Organic Juice Drink', qty: '25' },
+                  { item: 'Brown paper bags', qty: '25' },
+                  { item: 'Labels, scissors, stapler', qty: 'for packing' },
+                ].map((row, i) => (
+                  <div key={i} className="flex items-start gap-3">
+                    <span className="w-7 h-7 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 mt-0.5">{i + 1}</span>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">{row.item}</p>
+                      <p className="text-sm text-gray-400">{row.qty}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* PDF link */}
             <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100">
               <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-                <p className="font-semibold text-gray-800 text-base">Meal Bags Seva Logistics</p>
+                <p className="font-semibold text-gray-800 text-base">Full PDF Guide</p>
                 <a href="/logistics.pdf" target="_blank" className="text-sm bg-orange-500 text-white px-3 py-1.5 rounded-lg font-medium">Open ↗</a>
               </div>
-              <iframe src="/logistics.pdf" className="w-full" style={{ height: '60vh' }} title="Logistics PDF" />
+              <iframe src="/logistics.pdf" className="w-full" style={{ height: '50vh' }} title="Logistics PDF" />
             </div>
           </div>
         )}
