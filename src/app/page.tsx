@@ -1,10 +1,6 @@
 import Link from 'next/link';
-import { getDefaultCoordinator } from '@/lib/db';
 
-export default async function Home() {
-  const coord = await getDefaultCoordinator();
-  const memberHref = coord ? `/member?coord=${coord.id}` : '/member';
-
+export default function Home() {
   return (
     <main className="min-h-screen bg-gradient-to-b from-orange-50 to-amber-50 flex flex-col">
       <div className="flex-1 flex flex-col items-center justify-center p-6">
@@ -16,18 +12,10 @@ export default async function Home() {
           <p className="text-gray-500">Seva Commons · Meal Bag Delivery</p>
         </div>
 
-        <div className="flex flex-col gap-3 w-full max-w-xs">
-          <Link
-            href={memberHref}
-            className="bg-orange-500 hover:bg-orange-600 text-white text-center py-4 px-8 rounded-2xl text-lg font-semibold shadow-md transition-all active:scale-95"
-          >
-            I&apos;m a Member
+        <div className="pt-4 text-center">
+          <Link href="/admin" className="text-sm text-gray-400 hover:text-gray-600 transition-colors">
+            Admin Portal →
           </Link>
-          <div className="pt-4 text-center">
-            <Link href="/admin" className="text-sm text-gray-400 hover:text-gray-600 transition-colors">
-              Admin Portal →
-            </Link>
-          </div>
         </div>
       </div>
 
