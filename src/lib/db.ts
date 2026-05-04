@@ -407,11 +407,22 @@ export async function uploadDeliveryPhoto(
   const ext   = blob.type.includes('png') ? 'png' : 'jpg';
   const path  = `${signupId}.${ext}`;
 
+  // Try insert first; if file already exists, delete and re-upload
   const { error } = await supabase.storage
     .from('delivery-photos')
-    .upload(path, blob, { upsert: true, contentType: blob.type });
+    .upload(path, blob, { upsert: false, contentType: blob.type });
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.message.includes('already exists') || error.statusCode === '409' || (error as {statusCode?: string | number}).statusCode === 409) {
+      await supabase.storage.from('delivery-photos').remove([path]);
+      const { error: err2 } = await supabase.storage
+        .from('delivery-photos')
+        .upload(path, blob, { upsert: false, contentType: blob.type });
+      if (err2) throw new Error(err2.message);
+    } else {
+      throw new Error(error.message);
+    }
+  }
 
   const { data } = supabase.storage
     .from('delivery-photos')

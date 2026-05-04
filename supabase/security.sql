@@ -98,10 +98,13 @@ DROP POLICY IF EXISTS "Anyone can upload delivery photos" ON storage.objects;
 
 CREATE POLICY "Anyone can upload delivery photos"
   ON storage.objects FOR INSERT
-  WITH CHECK (
-    bucket_id = 'delivery-photos'
-    AND lower((storage.foldername(name))[1]) != '..'  -- no path traversal
-  );
+  WITH CHECK (bucket_id = 'delivery-photos');
+
+DROP POLICY IF EXISTS "Anyone can delete delivery photos" ON storage.objects;
+
+CREATE POLICY "Anyone can delete delivery photos"
+  ON storage.objects FOR DELETE
+  USING (bucket_id = 'delivery-photos');
 
 -- ─── Seed: link the default demo coordinator to a Supabase Auth user ──
 --
