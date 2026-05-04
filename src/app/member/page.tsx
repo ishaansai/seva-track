@@ -543,7 +543,7 @@ function MemberPageInner() {
                 <p className="text-sm text-gray-500 font-semibold uppercase tracking-wide px-1">Your Delivery History</p>
                 {myPastSignups.map(signup => {
                   const event = events.find(e => e.id === signup.event_id);
-                  const bags  = signup.item_type === 'meals' || signup.item_type === 'both' ? 25 : 0;
+                  const bags  = signup.item_type === 'meals' || signup.item_type === 'both' ? 20 : 0;
                   return (
                     <div key={signup.id} className="bg-white rounded-2xl p-4 shadow-sm border border-green-100 flex items-center justify-between gap-3">
                       <div>
@@ -569,7 +569,7 @@ function MemberPageInner() {
                 })}
                 <div className="bg-purple-50 border border-purple-100 rounded-2xl p-3 text-center">
                   <p className="text-sm font-semibold text-purple-700">
-                    🫶 Total: {myPastSignups.reduce((sum, s) => sum + (s.item_type === 'meals' || s.item_type === 'both' ? 25 : 0), 0)} meal bags delivered
+                    🫶 Total: {myPastSignups.reduce((sum, s) => sum + (s.item_type === 'meals' || s.item_type === 'both' ? 20 : 0), 0)} meal bags delivered
                   </p>
                 </div>
               </div>
@@ -639,7 +639,7 @@ function SignupForm({
           <input type="checkbox" checked={wantsMeals} disabled={mealsDisabled} onChange={e => !mealsDisabled && setWantsMeals(e.target.checked)} className="w-5 h-5 accent-orange-500" />
           <span className="text-2xl">🛍️</span>
           <div>
-            <p className="text-base font-semibold text-gray-700">25 Meal Bags</p>
+            <p className="text-base font-semibold text-gray-700">20 Meal Bags</p>
             <p className={`text-sm ${mealsDisabled ? 'text-red-400' : 'text-gray-400'}`}>
               {mealsDisabled ? 'No slots left' : `${slots.mealBagAvail} spot${slots.mealBagAvail !== 1 ? 's' : ''} left`}
             </p>
