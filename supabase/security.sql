@@ -86,7 +86,13 @@ CREATE POLICY "Coordinator delete own signups"
 
 -- ─── Storage policies ─────────────────────────────────────────
 
--- Keep public read (photo URLs are shared).
+-- Keep public read (photo URLs are shared in the admin dashboard).
+DROP POLICY IF EXISTS "Public read delivery photos" ON storage.objects;
+
+CREATE POLICY "Public read delivery photos"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'delivery-photos');
+
 -- Restrict uploads to image mime types to prevent abuse.
 DROP POLICY IF EXISTS "Anyone can upload delivery photos" ON storage.objects;
 

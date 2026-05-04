@@ -17,19 +17,19 @@ const SHOPPING_LIST = [
   { item: 'Skippy Peanut Butter', qty: '1 bottle' },
   { item: 'Kirkland Organic Strawberry Spread', qty: '½ bottle' },
   { item: 'Oroweat 100% Whole Wheat Bread', qty: '3 packs (Costco 2-pack)' },
-  { item: 'Sandwich Ziplock Bags', qty: '25' },
+  { item: 'Sandwich Ziplock Bags', qty: '20' },
   { item: 'Cuties (clementines)', qty: '1 bag' },
-  { item: 'Nature Valley Crunchy Granola Bar', qty: '25' },
-  { item: 'Frito Lay Fun Flavor Mix', qty: '25' },
-  { item: 'Honest Kids Organic Juice Drink', qty: '25' },
-  { item: 'Brown paper bags', qty: '25' },
+  { item: 'Nature Valley Crunchy Granola Bar', qty: '20' },
+  { item: 'Frito Lay Fun Flavor Mix', qty: '20' },
+  { item: 'Honest Kids Organic Juice Drink', qty: '20' },
+  { item: 'Brown paper bags', qty: '20' },
   { item: 'Labels, scissors, stapler', qty: 'for packing' },
 ];
 
 const HOW_IT_WORKS = [
   { icon: '📅', text: "Sign up at the beginning of each month for that month's dates" },
   { icon: '🛒', text: 'Shop for ingredients using the list below (most from Costco)' },
-  { icon: '🥪', text: 'Make 25 PB&J sandwiches + pack 5 items per brown bag' },
+  { icon: '🥪', text: 'Make 20 PB&J sandwiches + pack 5 items per brown bag' },
   { icon: '😷', text: 'Wear a mask and gloves while making and packing' },
   { icon: '🏷', text: 'Label bags with Seva or Chirag SJC stickers' },
   { icon: '📦', text: "Drop off bags at your coordinator's address (see date details in the app)" },
@@ -165,7 +165,7 @@ function LogisticsPageInner() {
             <div className="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden">
               <div className="bg-orange-100 px-4 py-2.5 flex items-center justify-between">
                 <p className="text-orange-800 font-bold text-base">Shopping List</p>
-                <span className="text-orange-600 text-sm font-medium">For 25 bags · Costco</span>
+                <span className="text-orange-600 text-sm font-medium">For 20 bags · Costco</span>
               </div>
               <div className="px-4 py-3 space-y-3">
                 {SHOPPING_LIST.map((row, i) => (

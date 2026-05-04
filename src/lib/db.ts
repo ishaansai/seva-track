@@ -54,7 +54,7 @@ export interface MemberContribution {
   total_signups: number;
   total_delivered: number;
   meal_bag_deliveries: number;
-  total_meal_bags: number;         // (meal_bag_deliveries × 25) + meal_bag_adjustment
+  total_meal_bags: number;         // (meal_bag_deliveries × 20) + meal_bag_adjustment
   nutritional_deliveries: number;  // auto count + nutritional_adjustment
   meal_bag_adjustment: number;     // manual override added on top
   nutritional_adjustment: number;
@@ -66,7 +66,7 @@ export interface MemberContribution {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 export function itemTypeLabel(type: ItemType): string {
-  if (type === 'meals')       return '25 Meal Bags';
+  if (type === 'meals')       return '20 Meal Bags';
   if (type === 'nutritional') return 'Nutritional Items';
   return 'Meal Bags + Nutritional Items';
 }
@@ -446,7 +446,7 @@ export function downloadCsv(events: SevaEvent[], signups: Signup[], monthFilter?
   for (const s of signups) {
     const ev = events.find(e => e.id === s.event_id);
     const mealBags = s.status === 'delivered' && (s.item_type === 'meals' || s.item_type === 'both')
-      ? '25' : '0';
+      ? '20' : '0';
     rows.push([
       ev?.date ?? '',
       s.member_name,
