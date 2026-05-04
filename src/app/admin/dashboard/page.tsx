@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import {
   getEvents, getSignups, addEvent, deleteEvent, updateEvent,
-  addSignup, adminMarkDelivered, undoDelivery, removeSignup, getSlotsUsed,
+  addSignup, adminMarkDelivered, undoDelivery, confirmDelivery, removeSignup, getSlotsUsed,
   getCoordinator, getCoordinatorByUserId, updateCoordinator,
   updateCoordinatorPassword, signOutCoordinator,
   getMemberContributions, setMemberAdjustment, downloadCsv,
@@ -368,6 +368,11 @@ export default function AdminDashboard() {
     await refresh();
   }
 
+  async function handleConfirmDelivery(signupId: string) {
+    await confirmDelivery(signupId);
+    await refresh();
+  }
+
   async function handleRemoveSignup(signupId: string) {
     if (!confirm('Remove this signup?')) return;
     await removeSignup(signupId);
@@ -498,11 +503,31 @@ export default function AdminDashboard() {
   const upcomingEvents = events.filter(e => e.date >= today);
   const pastEvents = events.filter(e => e.date < today);
   const totalSignups = signups.length;
-  const totalDelivered = signups.filter(s => s.status === 'delivered').length;
+  const isDone = (s: Signup) => s.status === 'delivered' || s.status === 'confirmed';
+  const totalDelivered = signups.filter(isDone).length;
   const totalMealBags = contributions.reduce((sum, c) => sum + Number(c.total_meal_bags), 0);
 
   const eventSignups = (eventId: string) => signups.filter(s => s.event_id === eventId);
-  const deliveredCount = (id: string) => signups.filter(s => s.event_id === id && s.status === 'delivered').length;
+  const deliveredCount = (id: string) => signups.filter(s => s.event_id === id && isDone(s)).length;
+
+  // This week: Sunday → Saturday containing today
+  const todayDate = new Date();
+  const weekStart = new Date(todayDate);
+  weekStart.setDate(todayDate.getDate() - todayDate.getDay()); // Sunday
+  weekStart.setHours(0, 0, 0, 0);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6); // Saturday
+  weekEnd.setHours(23, 59, 59, 999);
+
+  const thisWeekEvents = events.filter(e => {
+    const d = new Date(e.date + 'T00:00:00');
+    return d >= weekStart && d <= weekEnd;
+  });
+  const pendingConfirmations = signups.filter(s =>
+    s.status === 'delivered' &&
+    s.delivery_photo_url &&
+    thisWeekEvents.some(e => e.id === s.event_id)
+  );
 
   const selectedEventData = events.find(e => e.id === selectedEvent);
   const selectedSignups = selectedEvent ? eventSignups(selectedEvent) : [];
@@ -595,6 +620,45 @@ export default function AdminDashboard() {
                 </div>
               );
             })()}
+
+            {/* ── Confirm Deliveries (this week) ── */}
+            {pendingConfirmations.length > 0 && (
+              <div className="bg-white rounded-2xl border border-green-200 shadow-sm overflow-hidden">
+                <div className="bg-green-500 px-4 py-3 flex items-center justify-between">
+                  <div>
+                    <p className="font-bold text-white text-base">📸 Confirm This Week&apos;s Deliveries</p>
+                    <p className="text-green-100 text-sm">{pendingConfirmations.length} photo{pendingConfirmations.length > 1 ? 's' : ''} waiting for your confirmation</p>
+                  </div>
+                </div>
+                <div className="divide-y divide-gray-100">
+                  {pendingConfirmations.map(s => {
+                    const ev = thisWeekEvents.find(e => e.id === s.event_id);
+                    return (
+                      <div key={s.id} className="p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <div>
+                            <p className="font-semibold text-gray-800">{s.member_name}</p>
+                            <p className="text-sm text-orange-600">{itemTypeLabel(s.item_type)}{ev ? ` · ${formatShortDate(ev.date)}` : ''}</p>
+                          </div>
+                          <button
+                            onClick={() => handleConfirmDelivery(s.id)}
+                            className="bg-green-500 hover:bg-green-600 text-white text-sm font-bold px-4 py-2 rounded-xl transition-colors active:scale-95 flex-shrink-0"
+                          >
+                            ✓ Confirm
+                          </button>
+                        </div>
+                        {s.delivery_photo_url && (
+                          <div className="rounded-xl overflow-hidden border border-green-100">
+                            <Image src={s.delivery_photo_url} alt="Delivery proof" width={600} height={300} unoptimized className="w-full max-h-64 object-cover" />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="bg-orange-500 rounded-2xl p-4 text-white">
               <p className="font-bold text-base mb-0.5">Member Sign-Up Link</p>
               <p className="text-orange-100 text-sm mb-3">This month only — share with your volunteers</p>
@@ -897,12 +961,12 @@ Thank you for your seva! 🙏`}
               <div className="space-y-2">
                 <p className="text-sm text-gray-500 font-semibold uppercase tracking-wide px-1">Members</p>
                 {selectedSignups
-                  .sort((a, b) => (a.status === 'delivered' ? 1 : 0) - (b.status === 'delivered' ? 1 : 0))
+                  .sort((a, b) => (isDone(a) ? 1 : 0) - (isDone(b) ? 1 : 0))
                   .map(signup => (
                     <div key={signup.id} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
                       <div className="flex items-start gap-3">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-base flex-shrink-0 font-bold ${signup.status === 'delivered' ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'}`}>
-                          {signup.status === 'delivered' ? '✓' : '⏳'}
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-base flex-shrink-0 font-bold ${isDone(signup) ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'}`}>
+                          {signup.status === 'confirmed' ? '✅' : isDone(signup) ? '✓' : '⏳'}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
@@ -910,8 +974,8 @@ Thank you for your seva! 🙏`}
                               <p className="font-semibold text-gray-800 text-base">{signup.member_name}</p>
                               {signup.added_by_admin && <span className="text-sm text-gray-400">Added by admin</span>}
                             </div>
-                            <span className={`text-sm px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${signup.status === 'delivered' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-600'}`}>
-                              {signup.status === 'delivered' ? 'Delivered' : 'Pending'}
+                            <span className={`text-sm px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${signup.status === 'confirmed' ? 'bg-green-200 text-green-800' : isDone(signup) ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-600'}`}>
+                              {signup.status === 'confirmed' ? '✅ Confirmed' : isDone(signup) ? 'Delivered' : 'Pending'}
                             </span>
                           </div>
                           <p className="text-sm text-orange-600 mt-0.5">{itemTypeLabel(signup.item_type)}</p>
@@ -936,6 +1000,11 @@ Thank you for your seva! 🙏`}
                           <button onClick={() => handleAdminMarkDelivered(signup.id)}
                             className="flex-1 bg-green-50 hover:bg-green-100 text-green-700 text-sm font-semibold py-2.5 rounded-xl border border-green-200 transition-colors">
                             ✓ Mark Delivered
+                          </button>
+                        ) : signup.status === 'confirmed' ? (
+                          <button onClick={() => handleUndoDelivery(signup.id)}
+                            className="flex-1 bg-gray-50 hover:bg-gray-100 text-gray-500 text-sm font-semibold py-2.5 rounded-xl border border-gray-200 transition-colors">
+                            ↩ Undo Confirm
                           </button>
                         ) : (
                           <button onClick={() => handleUndoDelivery(signup.id)}

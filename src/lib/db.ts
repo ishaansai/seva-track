@@ -7,7 +7,7 @@ import { supabase } from './supabase';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type ItemType      = 'nutritional' | 'meals' | 'both';
-export type DeliveryStatus = 'pending' | 'delivered';
+export type DeliveryStatus = 'pending' | 'delivered' | 'confirmed';
 
 export interface CoordinatorProfile {
   id: string;
@@ -363,6 +363,15 @@ export async function undoDelivery(signupId: string): Promise<void> {
     delivery_photo_url: null,
     delivered_at: null,
   }).eq('id', signupId);
+}
+
+/** Admin confirms a delivery — clears the photo and marks as confirmed */
+export async function confirmDelivery(signupId: string): Promise<void> {
+  const { error } = await supabase.from('signups').update({
+    status: 'confirmed',
+    delivery_photo_url: null,
+  }).eq('id', signupId);
+  if (error) throw new Error(error.message);
 }
 
 // ─── Slot counting (client-side, from already-loaded signups) ─────────────────
