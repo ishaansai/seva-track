@@ -38,13 +38,13 @@ SELECT
   s.member_name,
   s.member_phone,
   COUNT(*)                                                                    AS total_signups,
-  COUNT(*) FILTER (WHERE s.status = 'delivered')                              AS total_delivered,
-  COUNT(*) FILTER (WHERE s.status = 'delivered'
+  COUNT(*) FILTER (WHERE s.status IN ('delivered', 'confirmed'))              AS total_delivered,
+  COUNT(*) FILTER (WHERE s.status IN ('delivered', 'confirmed')
                    AND s.item_type IN ('meals', 'both'))                      AS meal_bag_deliveries,
-  (COUNT(*) FILTER (WHERE s.status = 'delivered'
-                   AND s.item_type IN ('meals', 'both')) * 25
+  (COUNT(*) FILTER (WHERE s.status IN ('delivered', 'confirmed')
+                   AND s.item_type IN ('meals', 'both')) * 20
     + COALESCE(ma.meal_bag_adjustment, 0))                                    AS total_meal_bags,
-  (COUNT(*) FILTER (WHERE s.status = 'delivered'
+  (COUNT(*) FILTER (WHERE s.status IN ('delivered', 'confirmed')
                    AND s.item_type IN ('nutritional', 'both'))
     + COALESCE(ma.nutritional_adjustment, 0))                                 AS nutritional_deliveries,
   COALESCE(ma.meal_bag_adjustment, 0)                                         AS meal_bag_adjustment,

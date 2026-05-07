@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { getSignupById, getEvents, getCoordinator, markDelivered, uploadDeliveryPhoto, itemTypeLabel, Signup, SevaEvent, CoordinatorProfile } from '@/lib/db';
+import { getSignupById, getEvents, markDelivered, uploadDeliveryPhoto, itemTypeLabel, Signup, SevaEvent } from '@/lib/db';
 
 function formatDate(dateStr: string) {
   const d = new Date(dateStr + 'T00:00:00');
@@ -18,7 +18,6 @@ function DeliverPageInner() {
 
   const [signup, setSignup] = useState<Signup | null>(null);
   const [event, setEvent] = useState<SevaEvent | null>(null);
-  const [coord, setCoord] = useState<CoordinatorProfile | null>(null);
   const [photo, setPhoto] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -30,12 +29,11 @@ function DeliverPageInner() {
       const s = await getSignupById(id);
       if (!s) { setNotFound(true); return; }
       setSignup(s);
-      setDone(s.status === 'delivered');
+      setDone(s.status === 'delivered' || s.status === 'confirmed');
       if (s.delivery_photo_url) setPhoto(s.delivery_photo_url);
-      const [evs, c] = await Promise.all([getEvents(coordId), getCoordinator(s.coord_id)]);
+      const evs = await getEvents(coordId);
       const e = evs.find(e => e.id === s.event_id);
       if (e) setEvent(e);
-      if (c) setCoord(c);
     }
     load();
   }, [id, coordId]);

@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS signups (
   member_name        TEXT NOT NULL,
   member_phone       TEXT NOT NULL,
   item_type          TEXT NOT NULL CHECK (item_type IN ('meals', 'nutritional', 'both')),
-  status             TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'delivered')),
+  status             TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'delivered', 'confirmed')),
   delivery_photo_url TEXT,
   delivered_at       TIMESTAMPTZ,
   added_by_admin     BOOLEAN NOT NULL DEFAULT FALSE,
