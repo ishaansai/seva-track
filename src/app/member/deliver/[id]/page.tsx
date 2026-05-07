@@ -70,22 +70,6 @@ function DeliverPageInner() {
       const photoUrl = await uploadDeliveryPhoto(signup.id, photo);
       await markDelivered(signup.id, photoUrl);
       setDone(true);
-      // WA confirmation to the volunteer
-      const cleanPhone = signup.member_phone?.replace(/\D/g, '');
-      if (cleanPhone) {
-        const waPhone = cleanPhone.length === 10 ? `1${cleanPhone}` : cleanPhone;
-        const volunteerMsg = encodeURIComponent(
-          `✅ Hi ${signup.member_name}! Your ${itemTypeLabel(signup.item_type)} delivery for Seva Commons${event ? ` on ${formatDate(event.date)}` : ''} has been logged. Thank you for your seva! 🙏`
-        );
-        window.open(`https://wa.me/${waPhone}?text=${volunteerMsg}`, '_blank');
-      }
-      // WA alert to the admin
-      if (coord?.phone) {
-        const adminMsg = encodeURIComponent(
-          `📦 Delivery confirmed! ${signup.member_name} just completed their ${itemTypeLabel(signup.item_type)} delivery${event ? ` for ${formatDate(event.date)}` : ''}. 🎉`
-        );
-        setTimeout(() => window.open(`https://wa.me/${coord.phone}?text=${adminMsg}`, '_blank'), 600);
-      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       alert('Error: ' + msg + '\n\nPlease screenshot this and send to your coordinator.');
