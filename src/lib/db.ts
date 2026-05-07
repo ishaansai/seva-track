@@ -343,11 +343,12 @@ export async function removeSignup(id: string): Promise<void> {
 }
 
 export async function markDelivered(signupId: string, photoUrl: string): Promise<void> {
-  await supabase.from('signups').update({
+  const { error } = await supabase.from('signups').update({
     status: 'delivered',
     delivery_photo_url: photoUrl,
     delivered_at: new Date().toISOString(),
   }).eq('id', signupId);
+  if (error) throw new Error('DB save failed: ' + error.message);
 }
 
 export async function adminMarkDelivered(signupId: string): Promise<void> {

@@ -86,8 +86,9 @@ function DeliverPageInner() {
         );
         setTimeout(() => window.open(`https://wa.me/${coord.phone}?text=${adminMsg}`, '_blank'), 600);
       }
-    } catch {
-      alert('Failed to upload photo. Please try again.');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      alert('Error: ' + msg + '\n\nPlease screenshot this and send to your coordinator.');
     } finally {
       setUploading(false);
     }
