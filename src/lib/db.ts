@@ -461,19 +461,21 @@ export function downloadCsv(events: SevaEvent[], signups: Signup[], monthFilter?
     signups = signups.filter(s => filteredEventIds.has(s.event_id));
   }
   const rows: string[][] = [
-    ['Date', 'Member Name', 'Phone', 'Item Type', 'Meal Bags', 'Status',
+    ['Date', 'Member Name', 'Phone', 'Item Type', 'Meal Bags', 'Nutritional Items', 'Status',
      'Signed Up At', 'Delivered At', 'Drop-Off Location'],
   ];
   for (const s of signups) {
     const ev = events.find(e => e.id === s.event_id);
-    const mealBags = (s.status === 'delivered' || s.status === 'confirmed') && (s.item_type === 'meals' || s.item_type === 'both')
-      ? '20' : '0';
+    const done = s.status === 'delivered' || s.status === 'confirmed';
+    const mealBags     = done && (s.item_type === 'meals'       || s.item_type === 'both') ? '20' : '0';
+    const nutritional  = done && (s.item_type === 'nutritional' || s.item_type === 'both') ? '1'  : '0';
     rows.push([
       ev?.date ?? '',
       s.member_name,
       s.member_phone,
       itemTypeLabel(s.item_type),
       mealBags,
+      nutritional,
       s.status,
       s.signed_up_at ? new Date(s.signed_up_at).toLocaleString() : '',
       s.delivered_at ? new Date(s.delivered_at).toLocaleString() : '',

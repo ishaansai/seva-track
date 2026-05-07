@@ -1202,23 +1202,8 @@ Thank you for your seva! 🙏`}
                         )}
                       </div>
 
-                      {/* Manual adjustment badges */}
-                      {(Number(c.meal_bag_adjustment) !== 0 || Number(c.nutritional_adjustment) !== 0) && (
-                        <div className="flex gap-2 mt-1.5 flex-wrap">
-                          {Number(c.meal_bag_adjustment) !== 0 && (
-                            <span className="text-xs bg-orange-50 text-orange-600 border border-orange-100 rounded-full px-2 py-0.5">
-                              {Number(c.meal_bag_adjustment) > 0 ? '+' : ''}{c.meal_bag_adjustment} bags (manual)
-                            </span>
-                          )}
-                          {Number(c.nutritional_adjustment) !== 0 && (
-                            <span className="text-xs bg-teal-50 text-teal-600 border border-teal-100 rounded-full px-2 py-0.5">
-                              {Number(c.nutritional_adjustment) > 0 ? '+' : ''}{c.nutritional_adjustment} nutritional (manual)
-                            </span>
-                          )}
-                          {c.adjustment_note && (
-                            <span className="text-xs text-gray-400 italic">{'\u201C'}{c.adjustment_note}{'\u201D'}</span>
-                          )}
-                        </div>
+                      {c.adjustment_note && (
+                        <p className="text-xs text-gray-400 italic mt-1">{c.adjustment_note}</p>
                       )}
 
                       <p className="text-xs text-gray-300 mt-1.5">
