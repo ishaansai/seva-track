@@ -513,6 +513,7 @@ export default function AdminDashboard() {
   const isDone = (s: Signup) => s.status === 'delivered' || s.status === 'confirmed';
   const totalDelivered = signups.filter(isDone).length;
   const totalMealBags = contributions.reduce((sum, c) => sum + Number(c.total_meal_bags), 0);
+  const totalNutritional = contributions.reduce((sum, c) => sum + Number(c.nutritional_deliveries), 0);
 
   const eventSignups = (eventId: string) => signups.filter(s => s.event_id === eventId);
   const deliveredCount = (id: string) => signups.filter(s => s.event_id === id && isDone(s)).length;
@@ -575,6 +576,7 @@ export default function AdminDashboard() {
           { label: 'Delivered', value: totalDelivered, color: 'text-green-600' },
           { label: 'Pending', value: totalSignups - totalDelivered, color: 'text-amber-500' },
           { label: 'Meal Bags', value: totalMealBags, color: 'text-purple-600' },
+          { label: 'Nutritional', value: totalNutritional, color: 'text-teal-600' },
         ].map(({ label, value, color }) => (
           <div key={label} className="text-center min-w-[60px]">
             <p className={`text-2xl font-bold ${color}`}>{value}</p>

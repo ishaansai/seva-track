@@ -550,7 +550,8 @@ function MemberPageInner() {
                 <p className="text-sm text-gray-500 font-semibold uppercase tracking-wide px-1">Your Delivery History</p>
                 {myPastSignups.map(signup => {
                   const event = events.find(e => e.id === signup.event_id);
-                  const bags  = signup.item_type === 'meals' || signup.item_type === 'both' ? 20 : 0;
+                  const bags  = signup.item_type === 'meals'       || signup.item_type === 'both' ? 20 : 0;
+                  const nutri = signup.item_type === 'nutritional' || signup.item_type === 'both' ? 1  : 0;
                   return (
                     <div key={signup.id} className="bg-white rounded-2xl p-4 shadow-sm border border-green-100 flex items-center justify-between gap-3">
                       <div>
@@ -565,18 +566,29 @@ function MemberPageInner() {
                           </p>
                         )}
                       </div>
-                      {bags > 0 && (
-                        <div className="text-right flex-shrink-0">
-                          <p className="text-xl font-bold text-purple-600">{bags}</p>
-                          <p className="text-xs text-gray-400">bags</p>
-                        </div>
-                      )}
+                      <div className="flex gap-3 flex-shrink-0">
+                        {bags > 0 && (
+                          <div className="text-right">
+                            <p className="text-xl font-bold text-purple-600">{bags}</p>
+                            <p className="text-xs text-gray-400">bags</p>
+                          </div>
+                        )}
+                        {nutri > 0 && (
+                          <div className="text-right">
+                            <p className="text-xl font-bold text-teal-600">{nutri}</p>
+                            <p className="text-xs text-gray-400">nutritional</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
                 <div className="bg-purple-50 border border-purple-100 rounded-2xl p-3 text-center">
                   <p className="text-sm font-semibold text-purple-700">
-                    🫶 Total: {myPastSignups.reduce((sum, s) => sum + (s.item_type === 'meals' || s.item_type === 'both' ? 20 : 0), 0)} meal bags delivered
+                    🫶 {myPastSignups.reduce((sum, s) => sum + (s.item_type === 'meals' || s.item_type === 'both' ? 20 : 0), 0)} meal bags
+                    {myPastSignups.some(s => s.item_type === 'nutritional' || s.item_type === 'both') && (
+                      <span className="text-teal-600"> · {myPastSignups.filter(s => s.item_type === 'nutritional' || s.item_type === 'both').length} nutritional</span>
+                    )} delivered
                   </p>
                 </div>
               </div>
