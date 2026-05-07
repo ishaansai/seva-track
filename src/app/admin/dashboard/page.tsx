@@ -1158,7 +1158,7 @@ Thank you for your seva! 🙏`}
           <div className="mt-2 space-y-3">
             <div className="bg-purple-50 border border-purple-100 rounded-2xl p-4">
               <p className="font-bold text-purple-800 text-base">🫙 Volunteer Contributions</p>
-              <p className="text-sm text-purple-600 mt-0.5">{contributions.length} volunteers · {totalMealBags} total meal bags delivered</p>
+              <p className="text-sm text-purple-600 mt-0.5">{contributions.length} volunteers · {totalMealBags} meal bags{totalNutritional > 0 ? ` · ${totalNutritional} nutritional` : ''} delivered</p>
             </div>
 
             {contributions.length === 0 ? (
