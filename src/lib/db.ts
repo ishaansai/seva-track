@@ -466,7 +466,7 @@ export function downloadCsv(events: SevaEvent[], signups: Signup[], monthFilter?
   ];
   for (const s of signups) {
     const ev = events.find(e => e.id === s.event_id);
-    const mealBags = s.status === 'delivered' && (s.item_type === 'meals' || s.item_type === 'both')
+    const mealBags = (s.status === 'delivered' || s.status === 'confirmed') && (s.item_type === 'meals' || s.item_type === 'both')
       ? '20' : '0';
     rows.push([
       ev?.date ?? '',

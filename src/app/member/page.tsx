@@ -70,7 +70,11 @@ function MemberPageInner() {
   const activeMonthStr = `${activeMonthDate.getFullYear()}-${String(activeMonthDate.getMonth() + 1).padStart(2, '0')}`;
   const [showAllMonths, setShowAllMonths] = useState(false);
 
-  let visibleEvents = events.filter(e => e.date >= today);
+  // Show events until 48 hours after the event date, then auto-close
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 2);
+  const cutoffStr = cutoff.toISOString().slice(0, 10);
+  let visibleEvents = events.filter(e => e.date >= cutoffStr);
   if (monthFilter) {
     visibleEvents = visibleEvents.filter(e => e.date.startsWith(monthFilter));
   } else if (!showAllMonths) {

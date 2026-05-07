@@ -55,14 +55,14 @@ SELECT
   coord_id,
   member_name,
   member_phone,
-  COUNT(*)                                                        AS total_signups,
-  COUNT(*) FILTER (WHERE status = 'delivered')                    AS total_delivered,
-  COUNT(*) FILTER (WHERE status = 'delivered'
-                   AND item_type IN ('meals', 'both'))            AS meal_bag_deliveries,
-  COUNT(*) FILTER (WHERE status = 'delivered'
-                   AND item_type IN ('meals', 'both')) * 25       AS total_meal_bags,
-  COUNT(*) FILTER (WHERE status = 'delivered'
-                   AND item_type IN ('nutritional', 'both'))      AS nutritional_deliveries,
+  COUNT(*)                                                                        AS total_signups,
+  COUNT(*) FILTER (WHERE status IN ('delivered', 'confirmed'))                    AS total_delivered,
+  COUNT(*) FILTER (WHERE status IN ('delivered', 'confirmed')
+                   AND item_type IN ('meals', 'both'))                            AS meal_bag_deliveries,
+  COUNT(*) FILTER (WHERE status IN ('delivered', 'confirmed')
+                   AND item_type IN ('meals', 'both')) * 20                       AS total_meal_bags,
+  COUNT(*) FILTER (WHERE status IN ('delivered', 'confirmed')
+                   AND item_type IN ('nutritional', 'both'))                      AS nutritional_deliveries,
   MIN(signed_up_at)                                               AS first_signup,
   MAX(signed_up_at)                                               AS last_signup
 FROM signups
