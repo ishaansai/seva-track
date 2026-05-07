@@ -342,6 +342,14 @@ export async function removeSignup(id: string): Promise<void> {
   await supabase.from('signups').delete().eq('id', id);
 }
 
+/** Deletes all signups for a member (by phone) under a coordinator — removes them from Members list */
+export async function deleteMember(coordId: string, memberPhone: string): Promise<void> {
+  const { error } = await supabase.from('signups').delete()
+    .eq('coord_id', coordId)
+    .eq('member_phone', memberPhone);
+  if (error) throw new Error(error.message);
+}
+
 export async function markDelivered(signupId: string, photoUrl: string): Promise<void> {
   const { error } = await supabase.from('signups').update({
     status: 'delivered',

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import {
   getEvents, getSignups, addEvent, deleteEvent, updateEvent,
-  addSignup, adminMarkDelivered, undoDelivery, confirmDelivery, removeSignup, getSlotsUsed,
+  addSignup, adminMarkDelivered, undoDelivery, confirmDelivery, removeSignup, deleteMember, getSlotsUsed,
   getCoordinator, getCoordinatorByUserId, updateCoordinator,
   updateCoordinatorPassword, signOutCoordinator,
   getMemberContributions, setMemberAdjustment, downloadCsv,
@@ -376,6 +376,13 @@ export default function AdminDashboard() {
   async function handleRemoveSignup(signupId: string) {
     if (!confirm('Remove this signup?')) return;
     await removeSignup(signupId);
+    await refresh();
+  }
+
+  async function handleDeleteMember(memberPhone: string, memberName: string) {
+    if (!confirm(`Remove ${memberName} and all their signup history? This cannot be undone.`)) return;
+    if (!coord) return;
+    await deleteMember(coord.id, memberPhone);
     await refresh();
   }
 
@@ -1182,12 +1189,20 @@ Thank you for your seva! 🙏`}
                               </div>
                             )}
                           </div>
-                          <button
-                            onClick={() => isEditing ? setEditingMember(null) : openAdjustEditor(c)}
-                            className="text-xs text-gray-400 hover:text-orange-500 border border-gray-200 rounded-lg px-2 py-1 mt-0.5 transition-colors"
-                          >
-                            {isEditing ? 'Cancel' : '✏️ Edit'}
-                          </button>
+                          <div className="flex gap-1.5">
+                            <button
+                              onClick={() => isEditing ? setEditingMember(null) : openAdjustEditor(c)}
+                              className="text-xs text-gray-400 hover:text-orange-500 border border-gray-200 rounded-lg px-2 py-1 mt-0.5 transition-colors"
+                            >
+                              {isEditing ? 'Cancel' : '✏️ Edit'}
+                            </button>
+                            <button
+                              onClick={() => handleDeleteMember(c.member_phone, c.member_name)}
+                              className="text-xs text-gray-400 hover:text-red-500 border border-gray-200 rounded-lg px-2 py-1 mt-0.5 transition-colors"
+                            >
+                              🗑
+                            </button>
+                          </div>
                         </div>
                       </div>
 
