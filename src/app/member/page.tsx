@@ -410,6 +410,25 @@ function MemberPageInner() {
                             <SlotBar label="Nutritional" used={slots.nutritionalUsed} total={event.nutritional_slots} />
                           </div>
 
+                          {/* Who's signed up so far */}
+                          {(() => {
+                            const evSignups = signups.filter(s => s.event_id === event.id);
+                            if (evSignups.length === 0) return null;
+                            return (
+                              <div className="mb-3 bg-orange-50 border border-orange-100 rounded-xl px-3 py-2.5">
+                                <p className="text-xs font-semibold text-orange-700 mb-1.5">🙋 Signed up so far:</p>
+                                <div className="space-y-1">
+                                  {evSignups.map(s => (
+                                    <div key={s.id} className="flex items-center gap-2">
+                                      <span className="text-orange-400 text-xs">•</span>
+                                      <p className="text-sm text-gray-700">{s.member_name} — {itemTypeLabel(s.item_type)}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })()}
+
                           {alreadyIn ? (
                             <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center gap-2">
                               <span className="text-green-500">✓</span>
