@@ -96,9 +96,6 @@ function LogisticsPageInner() {
                     <a href={`tel:${coord.phone}`} className="flex items-center gap-1.5 bg-green-50 text-green-700 border border-green-200 px-3 py-2 rounded-xl text-base font-semibold hover:bg-green-100 transition-colors">
                       📞 Call
                     </a>
-                    <a href={`https://wa.me/${coord.phone}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 bg-green-500 text-white px-3 py-2 rounded-xl text-base font-semibold hover:bg-green-600 transition-colors">
-                      💬 WA
-                    </a>
                   </div>
                 </div>
               </div>

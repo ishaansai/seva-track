@@ -202,7 +202,6 @@ export default function AdminDashboard() {
   const [settingsAddress, setSettingsAddress] = useState('');
   const [settingsSaved, setSettingsSaved] = useState(false);
   const [settingsLoading, setSettingsLoading] = useState(false);
-  const [settingsNotify, setSettingsNotify] = useState(false);
 
   // Share list modal
   const [showShareList, setShowShareList] = useState(false);
@@ -247,7 +246,6 @@ export default function AdminDashboard() {
     setSignupOpenDay(profile.signup_open_day ?? 15);
     setSignupOpenOverride(profile.signup_open_override ?? '');
     setSignupCloseOverride(profile.signup_close_override ?? '');
-    setSettingsNotify(profile.notify_on_signup ?? false);
     setEvents(evs.sort((a, b) => a.date.localeCompare(b.date)));
     setSignups(sups);
     setContributions(contribs);
@@ -417,7 +415,7 @@ export default function AdminDashboard() {
         signup_open_day:      signupOpenDay,
         signup_open_override:  signupOpenOverride.trim()  || null,
         signup_close_override: signupCloseOverride.trim() || null,
-        notify_on_signup: settingsNotify,
+
       });
       // Change password separately via Supabase Auth (only if provided)
       if (settingsPassword.trim()) {
@@ -835,7 +833,7 @@ export default function AdminDashboard() {
                 <p className="font-semibold text-gray-800 text-base">Add Member Manually</p>
                 <input type="text" placeholder="Name *" value={addName} onChange={e => setAddName(e.target.value)}
                   className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400" />
-                <input type="tel" placeholder="Phone / WhatsApp" value={addContact} onChange={e => setAddContact(e.target.value)}
+                <input type="text" inputMode="numeric" placeholder="Phone" value={addContact} onChange={e => setAddContact(e.target.value)}
                   className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400" />
                 <ItemTypePicker wantsMeals={addMeals} setWantsMeals={setAddMeals} wantsNutritional={addNutritional} setWantsNutritional={setAddNutritional} />
                 {!addMeals && !addNutritional && <p className="text-sm text-red-500">Select at least one item type</p>}
@@ -1294,7 +1292,7 @@ Thank you for your seva! 🙏`}
                 </div>
                 <div>
                   <label className="text-sm text-gray-500 font-medium block mb-1">📞 Your Phone Number</label>
-                  <input type="tel" inputMode="numeric" value={settingsPhone} onChange={e => setSettingsPhone(e.target.value)}
+                  <input type="text" inputMode="numeric" value={settingsPhone} onChange={e => setSettingsPhone(e.target.value)}
                     className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400" />
                   <p className="text-xs text-gray-400 mt-1">Members see a Call and WhatsApp button (number not displayed)</p>
                 </div>
@@ -1308,20 +1306,6 @@ Thank you for your seva! 🙏`}
                   <label className="text-sm text-gray-500 font-medium block mb-1">🔐 Change Password (leave blank to keep current)</label>
                   <input type="password" placeholder="New password" value={settingsPassword} onChange={e => setSettingsPassword(e.target.value)}
                     className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400" />
-                </div>
-                <div className="pt-1">
-                  <label className="flex items-center gap-3 cursor-pointer select-none">
-                    <div
-                      onClick={() => setSettingsNotify(v => !v)}
-                      className={`w-11 h-6 rounded-full transition-colors flex-shrink-0 relative ${settingsNotify ? 'bg-orange-500' : 'bg-gray-200'}`}
-                    >
-                      <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${settingsNotify ? 'left-5' : 'left-0.5'}`} />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-gray-700">💬 WhatsApp signup notifications</p>
-                      <p className="text-xs text-gray-400">When a member signs up, their WhatsApp will open pre-filled to notify you</p>
-                    </div>
-                  </label>
                 </div>
               </div>
             </div>
