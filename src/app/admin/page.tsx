@@ -121,7 +121,7 @@ export default function AdminLogin() {
               <input type="password" placeholder="Choose a password * (min 6 chars)"
                 value={regPassword} onChange={e => { setRegPassword(e.target.value); setError(''); }}
                 className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400" />
-              <input type="tel" inputMode="numeric" placeholder="Your phone number"
+              <input type="text" inputMode="numeric" placeholder="Your phone number"
                 value={regPhone} onChange={e => setRegPhone(e.target.value)}
                 className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400" />
               <input type="text" placeholder="Default drop-off address"
