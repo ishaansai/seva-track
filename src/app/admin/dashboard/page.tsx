@@ -126,17 +126,34 @@ function getPatternLabel(dateStr: string): string {
   return `${ord} ${DAY_NAMES[day]} of each month`;
 }
 
-function getRecurringPreview(dateStr: string, months: number): string[] {
+function get5thWeekdayOfMonth(year: number, month: number, weekday: number): string | null {
+  const candidate = getNthWeekdayOfMonth(year, month, weekday, 5);
+  if (candidate.getMonth() !== month) return null;
+  return candidate.toISOString().slice(0, 10);
+}
+
+function getRecurringPreview(dateStr: string, months: number, include5th = false): string[] {
   if (!dateStr) return [];
   const { day, n } = getWeekdayPattern(dateStr);
   const base  = new Date(dateStr + 'T00:00:00');
   const dates = [dateStr];
   for (let m = 1; m < months; m++) {
-    const tm = base.getMonth() + m;
-    const d  = getNthWeekdayOfMonth(base.getFullYear() + Math.floor(tm / 12), tm % 12, day, n);
+    const tm   = base.getMonth() + m;
+    const yr   = base.getFullYear() + Math.floor(tm / 12);
+    const mo   = tm % 12;
+    const d    = getNthWeekdayOfMonth(yr, mo, day, n);
     dates.push(d.toISOString().slice(0, 10));
+    if (include5th) {
+      const fifth = get5thWeekdayOfMonth(yr, mo, day);
+      if (fifth && fifth !== d.toISOString().slice(0, 10)) dates.push(fifth);
+    }
   }
-  return dates;
+  // also check 5th for the base month
+  if (include5th) {
+    const fifth = get5thWeekdayOfMonth(base.getFullYear(), base.getMonth(), day);
+    if (fifth && fifth !== dateStr) dates.splice(1, 0, fifth);
+  }
+  return dates.sort();
 }
 
 export default function AdminDashboard() {
@@ -177,6 +194,7 @@ export default function AdminDashboard() {
   // Recurring events
   const [repeatMonthly, setRepeatMonthly] = useState(false);
   const [repeatMonths, setRepeatMonths] = useState(3);
+  const [include5th, setInclude5th] = useState(false);
 
   // Edit event state
   const [editingSlots, setEditingSlots] = useState(false);
@@ -285,12 +303,20 @@ export default function AdminDashboard() {
       if (repeatMonthly) {
         const { day, n } = getWeekdayPattern(date);
         const base = new Date(date + 'T00:00:00');
+        if (include5th) {
+          const fifth = get5thWeekdayOfMonth(base.getFullYear(), base.getMonth(), day);
+          if (fifth && fifth !== date) allEvents.push({ date: fifth, note });
+        }
         for (let m = 1; m < repeatMonths; m++) {
           const tm = base.getMonth() + m;
-          const next = getNthWeekdayOfMonth(
-            base.getFullYear() + Math.floor(tm / 12), tm % 12, day, n,
-          );
+          const yr = base.getFullYear() + Math.floor(tm / 12);
+          const mo = tm % 12;
+          const next = getNthWeekdayOfMonth(yr, mo, day, n);
           allEvents.push({ date: next.toISOString().slice(0, 10), note });
+          if (include5th) {
+            const fifth = get5thWeekdayOfMonth(yr, mo, day);
+            if (fifth && fifth !== next.toISOString().slice(0, 10)) allEvents.push({ date: fifth, note });
+          }
         }
       }
     }
@@ -309,6 +335,7 @@ export default function AdminDashboard() {
     setNewNotes(['', '', '', '']);
     setRepeatMonthly(false);
     setRepeatMonths(3);
+    setInclude5th(false);
     setDropOffLocation(coord?.address || '');
     await refresh();
     setCreateLoading(false);
@@ -1116,11 +1143,22 @@ Thank you for your seva! 🙏`}
                       </select>
                       <p className="text-sm text-gray-400">months in a row</p>
                     </div>
+                    {/* 5th weekday option */}
+                    <label className="flex items-center gap-3 cursor-pointer select-none">
+                      <div
+                        onClick={() => setInclude5th(v => !v)}
+                        className={`w-9 h-5 rounded-full transition-colors flex-shrink-0 relative ${include5th ? 'bg-orange-500' : 'bg-gray-200'}`}
+                      >
+                        <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${include5th ? 'left-4' : 'left-0.5'}`} />
+                      </div>
+                      <p className="text-sm text-gray-600">Include 5th {newDates.find(d => d) ? DAY_NAMES[getWeekdayPattern(newDates.find(d => d)!).day] : 'weekday'} when available</p>
+                    </label>
+
                     {/* Preview per filled date */}
                     {newDates.some(d => d) && (
                       <div className="space-y-2">
                         {newDates.filter(d => d).map(dateStr => {
-                          const preview = getRecurringPreview(dateStr, repeatMonths);
+                          const preview = getRecurringPreview(dateStr, repeatMonths, include5th);
                           const label   = getPatternLabel(dateStr);
                           return (
                             <div key={dateStr} className="bg-orange-50 border border-orange-100 rounded-xl p-3">
