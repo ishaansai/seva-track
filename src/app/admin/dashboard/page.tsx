@@ -184,7 +184,7 @@ export default function AdminDashboard() {
 
   // Create form
   const [newDates, setNewDates] = useState(['', '', '', '']);
-  const [newNotes, setNewNotes] = useState(['', '', '', '']);
+  const [newNotes, setNewNotes] = useState(['', '', '', '']); // keep 4 default slots for familiarity
   const [mealBagSlots, setMealBagSlots] = useState(7);
   const [nutritionalSlots, setNutritionalSlots] = useState(3);
   const [dropOffStart, setDropOffStart] = useState('18:00');
@@ -1072,6 +1072,10 @@ Thank you for your seva! 🙏`}
                       <input type="date" value={date}
                         onChange={e => { const u=[...newDates]; u[i]=e.target.value; setNewDates(u); }}
                         className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:border-orange-400" />
+                      {newDates.length > 1 && (
+                        <button onClick={() => { setNewDates(d => d.filter((_,j) => j !== i)); setNewNotes(n => n.filter((_,j) => j !== i)); }}
+                          className="text-gray-300 hover:text-red-400 transition-colors text-lg leading-none">✕</button>
+                      )}
                     </div>
                     {date && (
                       <input type="text" placeholder="📌 Note for this date (optional)"
@@ -1081,6 +1085,10 @@ Thank you for your seva! 🙏`}
                     )}
                   </div>
                 ))}
+                <button onClick={() => { setNewDates(d => [...d, '']); setNewNotes(n => [...n, '']); }}
+                  className="ml-[68px] text-sm text-orange-500 font-medium hover:text-orange-600 transition-colors">
+                  + Add date
+                </button>
               </div>
               <div className="border-t border-gray-100 pt-4 mb-4">
                 <p className="text-sm text-gray-500 font-semibold uppercase tracking-wide mb-3">Slot Limits</p>
