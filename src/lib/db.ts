@@ -185,6 +185,14 @@ export async function signOutCoordinator(): Promise<void> {
   await supabase.auth.signOut();
 }
 
+/** Send a password reset email to the given address. */
+export async function sendPasswordReset(email: string): Promise<void> {
+  const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+    redirectTo: `${window.location.origin}/admin`,
+  });
+  if (error) throw new Error(error.message);
+}
+
 /** Change the current coordinator's password via Supabase Auth. */
 export async function updateCoordinatorPassword(newPassword: string): Promise<void> {
   const { error } = await supabase.auth.updateUser({ password: newPassword });
