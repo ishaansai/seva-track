@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { signInCoordinator, registerCoordinator, sendPasswordReset, DEFAULT_ADDRESS } from '@/lib/db';
+import { supabase } from '@/lib/supabase';
 
 export default function AdminLogin() {
-  const [mode, setMode] = useState<'login' | 'register' | 'forgot'>('login');
+  const [mode, setMode] = useState<'login' | 'register' | 'forgot' | 'set-password'>('login');
 
   // Login
   const [email,    setEmail]    = useState('');
@@ -20,12 +21,41 @@ export default function AdminLogin() {
   const [regAddress, setRegAddress] = useState('');
 
   // Forgot password
-  const [resetEmail,   setResetEmail]   = useState('');
-  const [resetSent,    setResetSent]    = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetSent,  setResetSent]  = useState(false);
+
+  // Set new password (after clicking reset link)
+  const [newPassword,    setNewPassword]    = useState('');
+  const [newPassword2,   setNewPassword2]   = useState('');
+  const [passwordSaved,  setPasswordSaved]  = useState(false);
 
   const [error,   setError]   = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+
+  // Detect recovery token in URL hash from Supabase reset email
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash.includes('type=recovery')) {
+      setMode('set-password');
+    }
+  }, []);
+
+  async function handleSetPassword() {
+    if (newPassword.length < 6) { setError('Password must be at least 6 characters.'); return; }
+    if (newPassword !== newPassword2) { setError('Passwords do not match.'); return; }
+    setLoading(true); setError('');
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw new Error(error.message);
+      setPasswordSaved(true);
+      setTimeout(() => router.push('/admin/dashboard'), 2000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not update password.');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function handleLogin() {
     if (!email.trim() || !password) return;
@@ -87,10 +117,10 @@ export default function AdminLogin() {
           <div className="text-center mb-6">
             <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">🔐</div>
             <h2 className="text-xl font-bold text-gray-800">
-              {mode === 'login' ? 'Coordinator Login' : mode === 'register' ? 'Create Your Account' : 'Reset Password'}
+              {mode === 'login' ? 'Coordinator Login' : mode === 'register' ? 'Create Your Account' : mode === 'forgot' ? 'Reset Password' : 'Set New Password'}
             </h2>
             <p className="text-sm text-gray-400 mt-1">
-              {mode === 'login' ? 'Sign in with your coordinator email' : mode === 'register' ? 'Set up your chapter' : 'We\'ll send a reset link to your email'}
+              {mode === 'login' ? 'Sign in with your coordinator email' : mode === 'register' ? 'Set up your chapter' : mode === 'forgot' ? "We'll send a reset link to your email" : 'Choose a new password for your account'}
             </p>
           </div>
 
@@ -190,7 +220,34 @@ export default function AdminLogin() {
             </div>
           )}
 
-          {mode !== 'forgot' && (
+          {mode === 'set-password' && (
+            <div className="space-y-3">
+              {passwordSaved ? (
+                <div className="text-center py-4">
+                  <div className="text-4xl mb-3">✅</div>
+                  <p className="font-semibold text-gray-800">Password updated!</p>
+                  <p className="text-sm text-gray-400 mt-1">Taking you to the dashboard…</p>
+                </div>
+              ) : (
+                <>
+                  <input type="password" placeholder="New password (min 6 chars)"
+                    value={newPassword} onChange={e => { setNewPassword(e.target.value); setError(''); }}
+                    className={`w-full border rounded-xl px-4 py-3 text-base focus:outline-none transition-colors ${error ? 'border-red-400 bg-red-50' : 'border-gray-200 focus:border-orange-400'}`} />
+                  <input type="password" placeholder="Confirm new password"
+                    value={newPassword2} onChange={e => { setNewPassword2(e.target.value); setError(''); }}
+                    onKeyDown={e => e.key === 'Enter' && handleSetPassword()}
+                    className={`w-full border rounded-xl px-4 py-3 text-base focus:outline-none transition-colors ${error ? 'border-red-400 bg-red-50' : 'border-gray-200 focus:border-orange-400'}`} />
+                  {error && <p className="text-red-500 text-sm">{error}</p>}
+                  <button onClick={handleSetPassword} disabled={loading}
+                    className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white py-3 rounded-xl font-semibold text-base transition-colors">
+                    {loading ? 'Saving…' : 'Save New Password'}
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
+          {mode !== 'forgot' && mode !== 'set-password' && (
             <div className="border-t border-gray-100 mt-5 pt-4 text-center">
               {mode === 'login' ? (
                 <p className="text-sm text-gray-400">
