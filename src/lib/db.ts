@@ -223,14 +223,22 @@ export async function getCoordinatorByUserId(userId: string): Promise<Coordinato
 
 /** Returns the first coordinator in the DB — used as fallback when no ?coord= param is in the URL. */
 export async function getDefaultCoordinator(): Promise<CoordinatorProfile | null> {
+  // Prefer the most recently created non-demo coordinator
   const { data, error } = await supabase
     .from('coordinators')
     .select('id,name,email,phone,address,signup_open_day,signup_open_override,signup_close_override,notify_on_signup')
-    .order('created_at', { ascending: true })
+    .neq('id', 'seva2024')
+    .order('created_at', { ascending: false })
     .limit(1)
     .single();
-  if (error || !data) return null;
-  return data as CoordinatorProfile;
+  if (!error && data) return data as CoordinatorProfile;
+  // Fall back to seva2024 if no other coordinator exists
+  const { data: fallback } = await supabase
+    .from('coordinators')
+    .select('id,name,email,phone,address,signup_open_day,signup_open_override,signup_close_override,notify_on_signup')
+    .eq('id', 'seva2024')
+    .single();
+  return fallback as CoordinatorProfile ?? null;
 }
 
 /** Registration is handled server-side via /api/auth/register to keep the
