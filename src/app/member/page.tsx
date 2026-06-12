@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   getEvents, getSignups, addSignup, removeSignup, getSlotsUsed,
-  getCoordinator, getDefaultCoordinator,
+  getCoordinator,
   isEventSignupOpen,
   SevaEvent, Signup, ItemType, itemTypeLabel, CoordinatorProfile,
 } from '@/lib/db';
