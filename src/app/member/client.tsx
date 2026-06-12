@@ -30,27 +30,33 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
 
   // Build map from initial server-loaded data
   const allCoordsMap = new Map(initialCoordinators.map(c => [c.id, c]));
+  const realCoords = initialCoordinators.filter(c => c.id !== 'seva2024');
 
-  // If ?coord= is specified, filter to just that coordinator
-  const coordsById: Map<string, CoordinatorProfile> = coordParam
+  // If ?coord= is specified, show only that coordinator's events — but fall back to all if they have none
+  const coordFilteredEvents = coordParam
+    ? initialEvents.filter(e => e.coord_id === coordParam)
+    : initialEvents;
+  const filteredEvents = coordFilteredEvents.length > 0 ? coordFilteredEvents : initialEvents;
+
+  // Show all coordinators' data unless we successfully filtered to one
+  const coordsById: Map<string, CoordinatorProfile> = (coordParam && coordFilteredEvents.length > 0)
     ? (allCoordsMap.has(coordParam) ? new Map([[coordParam, allCoordsMap.get(coordParam)!]]) : allCoordsMap)
     : allCoordsMap;
 
-  const filteredEvents = coordParam
-    ? initialEvents.filter(e => e.coord_id === coordParam)
-    : initialEvents;
+  const filteredSignups = (coordParam && coordFilteredEvents.length > 0)
+    ? initialSignups.filter(s => s.coord_id === coordParam)
+    : initialSignups;
 
   // State for interactive parts — start with server-loaded data, no loading needed
   const [events] = useState<SevaEvent[]>(filteredEvents);
-  const [signups, setSignups] = useState<Signup[]>(
-    coordParam ? initialSignups.filter(s => s.coord_id === coordParam) : initialSignups
-  );
+  const [signups, setSignups] = useState<Signup[]>(filteredSignups);
 
-  // Pick the contact coordinator
-  const realCoords = initialCoordinators.filter(c => c.id !== 'seva2024');
-  const contactCoord = coordParam
-    ? (allCoordsMap.get(coordParam) ?? realCoords[realCoords.length - 1] ?? null)
-    : (realCoords[realCoords.length - 1] ?? initialCoordinators[initialCoordinators.length - 1] ?? null);
+  // Pick the contact coordinator: prefer whoever has the next upcoming event
+  const today = new Date().toISOString().slice(0, 10);
+  const nextEvent = filteredEvents.find(e => e.date >= today);
+  const contactCoord = nextEvent
+    ? (allCoordsMap.get(nextEvent.coord_id) ?? realCoords[0] ?? null)
+    : (realCoords[0] ?? initialCoordinators[0] ?? null);
   const coordId = contactCoord?.id ?? '';
 
   const [showForm, setShowForm] = useState<string | null>(null);
@@ -67,7 +73,6 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
   const [myPastSignups, setMyPastSignups] = useState<Signup[]>([]);
   const [findLoading, setFindLoading] = useState(false);
 
-  const today = new Date().toISOString().slice(0, 10);
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - 2);
   const cutoffStr = cutoff.toISOString().slice(0, 10);

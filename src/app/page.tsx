@@ -1,9 +1,8 @@
 import Link from 'next/link';
-import { getDefaultCoordinator } from '@/lib/db';
 
 export default async function Home() {
-  const coord = await getDefaultCoordinator();
-  const memberHref = coord ? `/member?coord=${coord.id}` : '/member';
+  // Always link to /member without coord param so ALL coordinators' events show
+  const memberHref = '/member';
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-orange-50 to-amber-50 flex flex-col">
