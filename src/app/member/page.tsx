@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   getEvents, getSignups, addSignup, removeSignup, getSlotsUsed,
-  getCoordinator, getDefaultCoordinator, getAllCoordinators, getAllEvents, getAllSignups,
+  getCoordinator, getDefaultCoordinator,
   isEventSignupOpen,
   SevaEvent, Signup, ItemType, itemTypeLabel, CoordinatorProfile,
 } from '@/lib/db';
@@ -59,23 +59,18 @@ function MemberPageInner() {
         setEvents(evs);
         setSignups(sups);
       } else {
-        // No coord param — load ALL events first (publicly readable), then resolve coordinators
-        // This avoids RLS issues with listing the coordinators table directly.
-        const allEvs = await getAllEvents(); // no coordIds = raw Supabase query on events table
-        const uniqueCoordIds = [...new Set(allEvs.map(e => e.coord_id))];
+        // No coord param — use server API route which bypasses RLS entirely
+        const res = await fetch('/api/public');
+        const { coordinators: allCoords, events: allEvs, signups: allSups } = await res.json() as {
+          coordinators: CoordinatorProfile[];
+          events: SevaEvent[];
+          signups: Signup[];
+        };
 
-        // Fetch each coordinator individually (getCoordinator(id) works with public RLS)
-        const coordProfiles = await Promise.all(uniqueCoordIds.map(id => getCoordinator(id)));
-        const allCoords = coordProfiles.filter((c): c is CoordinatorProfile => c !== null);
-
-        // Fetch signups per coordinator
-        const supArrays = await Promise.all(uniqueCoordIds.map(id => getSignups(id)));
-        const allSups = supArrays.flat();
-
-        const map = new Map(allCoords.map(c => [c.id, c]));
+        const map = new Map(allCoords.map((c: CoordinatorProfile) => [c.id, c]));
 
         // Contact banner: prefer a real (non-demo) coordinator
-        const realCoords = allCoords.filter(c => c.id !== 'seva2024');
+        const realCoords = allCoords.filter((c: CoordinatorProfile) => c.id !== 'seva2024');
         const contactCoord = realCoords.length > 0 ? realCoords[realCoords.length - 1] : allCoords[allCoords.length - 1];
         if (contactCoord) {
           setCoord(contactCoord);
@@ -133,9 +128,14 @@ function MemberPageInner() {
         item_type: itemType,
       });
       // Refresh all signups so slot counts stay accurate across coordinators
-      const sups = coordParam
-        ? await getSignups(event.coord_id)
-        : await getAllSignups();
+      let sups: Signup[];
+      if (coordParam) {
+        sups = await getSignups(event.coord_id);
+      } else {
+        const res = await fetch('/api/public');
+        const data = await res.json() as { signups: Signup[] };
+        sups = data.signups;
+      }
       setSignups(sups);
       setJustSignedUp({ signup, event });
       setMySignedUpEventIds(prev => new Set([...prev, event.id]));
@@ -152,7 +152,14 @@ function MemberPageInner() {
     const cleaned = deliverPhone.replace(/\D/g, '');
     if (!cleaned) return;
     setFindLoading(true);
-    const allSignups = coordParam ? await getSignups(coordId) : await getAllSignups();
+    let allSignups: Signup[];
+    if (coordParam) {
+      allSignups = await getSignups(coordId);
+    } else {
+      const res = await fetch('/api/public');
+      const data = await res.json() as { signups: Signup[] };
+      allSignups = data.signups;
+    }
     const mine = allSignups.filter(s => s.member_phone.replace(/\D/g, '') === cleaned);
     setMySignups(mine.filter(s => s.status === 'pending'));
     setMyPastSignups(mine.filter(s => s.status === 'delivered'));
