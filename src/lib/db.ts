@@ -221,18 +221,22 @@ export async function getCoordinatorByUserId(userId: string): Promise<Coordinato
   return data as CoordinatorProfile;
 }
 
-/** Returns all coordinators (excluding the demo account). */
+/** Returns ALL coordinators including demo. Used for the public member page. */
 export async function getAllCoordinators(): Promise<CoordinatorProfile[]> {
   const { data } = await supabase
     .from('coordinators')
     .select('id,name,email,phone,address,signup_open_day,signup_open_override,signup_close_override,notify_on_signup')
-    .neq('id', 'seva2024')
     .order('created_at', { ascending: true });
   return (data ?? []) as CoordinatorProfile[];
 }
 
-/** Returns all events from all coordinators, sorted by date ascending. */
-export async function getAllEvents(): Promise<SevaEvent[]> {
+/** Returns all events for the given list of coordinator IDs, sorted by date. */
+export async function getAllEvents(coordIds?: string[]): Promise<SevaEvent[]> {
+  if (coordIds && coordIds.length > 0) {
+    // Fetch per coordinator (works reliably with RLS) then combine
+    const arrays = await Promise.all(coordIds.map(id => getEvents(id)));
+    return arrays.flat().sort((a, b) => a.date.localeCompare(b.date));
+  }
   const { data } = await supabase
     .from('events')
     .select('*')
@@ -240,8 +244,12 @@ export async function getAllEvents(): Promise<SevaEvent[]> {
   return (data ?? []) as SevaEvent[];
 }
 
-/** Returns all signups across all coordinators. */
-export async function getAllSignups(): Promise<Signup[]> {
+/** Returns all signups for the given list of coordinator IDs. */
+export async function getAllSignups(coordIds?: string[]): Promise<Signup[]> {
+  if (coordIds && coordIds.length > 0) {
+    const arrays = await Promise.all(coordIds.map(id => getSignups(id)));
+    return arrays.flat();
+  }
   const { data } = await supabase
     .from('signups')
     .select('*')

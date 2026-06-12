@@ -60,23 +60,23 @@ function MemberPageInner() {
         setSignups(sups);
       } else {
         // No coord param — load ALL coordinators and ALL their events
-        const [allCoords, allEvs, allSups] = await Promise.all([
-          getAllCoordinators(),
-          getAllEvents(),
-          getAllSignups(),
+        const allCoords = await getAllCoordinators();
+        const coordIds = allCoords.map(c => c.id);
+        const [allEvs, allSups] = await Promise.all([
+          getAllEvents(coordIds),
+          getAllSignups(coordIds),
         ]);
         const map = new Map(allCoords.map(c => [c.id, c]));
-        // If there's only one real coordinator, also set coord for the contact banner
-        if (allCoords.length === 1) {
-          setCoord(allCoords[0]);
-          setCoordId(allCoords[0].id);
-        } else if (allCoords.length > 1) {
-          // Use the most recently added (last in ascending order) as fallback for contact
-          setCoord(allCoords[allCoords.length - 1]);
-          setCoordId(allCoords[allCoords.length - 1].id);
+        // Real coordinators (non-demo) for contact banner — pick the most recently added
+        const realCoords = allCoords.filter(c => c.id !== 'seva2024');
+        const contactCoord = realCoords.length > 0 ? realCoords[realCoords.length - 1] : allCoords[allCoords.length - 1];
+        if (contactCoord) {
+          setCoord(contactCoord);
+          setCoordId(contactCoord.id);
         }
         setCoordsById(map);
-        setEvents(allEvs);
+        // Only show events whose coordinator exists in the map
+        setEvents(allEvs.filter(e => map.has(e.coord_id)));
         setSignups(allSups);
       }
       setLoading(false);
@@ -387,8 +387,8 @@ function MemberPageInner() {
                   </div>
                 ) : (
                   <div className="space-y-3 mt-4">
-                    {/* Show coordinator name when there's exactly one coordinator */}
-                    {coordsById.size === 1 && coord && (
+                    {/* Show coordinator name when there's exactly one real coordinator */}
+                    {[...coordsById.values()].filter(c => c.id !== 'seva2024').length === 1 && coord && coord.id !== 'seva2024' && (
                       <div className="bg-white rounded-2xl px-4 py-3 shadow-sm border border-orange-100 flex items-center gap-3">
                         <span className="text-2xl">🙏</span>
                         <div>
@@ -412,7 +412,7 @@ function MemberPageInner() {
                         <div key={event.id} className="bg-white rounded-2xl p-4 shadow-sm border border-orange-100">
                           <div className="flex items-start justify-between mb-2">
                             <div>
-                              {coordsById.size > 1 && eventCoord && (
+                              {coordsById.size > 1 && eventCoord && eventCoord.id !== 'seva2024' && (
                                 <p className="text-xs text-orange-500 font-semibold uppercase tracking-wide mb-0.5">🙏 {eventCoord.name}</p>
                               )}
                               <p className="font-semibold text-gray-800 text-base">{formatDate(event.date)}</p>
