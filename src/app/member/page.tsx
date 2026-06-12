@@ -45,17 +45,33 @@ function MemberPageInner() {
   useEffect(() => {
     async function load() {
       setLoading(true);
-      // If no ?coord= in URL, fall back to the first coordinator in the DB
-      const profile = coordParam
+      let profile = coordParam
         ? await getCoordinator(coordParam)
         : await getDefaultCoordinator();
       if (!profile) { setLoading(false); return; }
-      setCoordId(profile.id);
-      const [evs, sups] = await Promise.all([
-        getEvents(profile.id),
-        getSignups(profile.id),
-      ]);
+
+      // If the specified coord has no events, fall back to the default coordinator
+      const evs = await getEvents(profile.id);
+      if (evs.length === 0 && coordParam) {
+        const fallback = await getDefaultCoordinator();
+        if (fallback && fallback.id !== profile.id) {
+          const fallbackEvs = await getEvents(fallback.id);
+          if (fallbackEvs.length > 0) {
+            profile = fallback;
+            const sups = await getSignups(fallback.id);
+            setCoord(fallback);
+            setCoordId(fallback.id);
+            setEvents(fallbackEvs.sort((a, b) => a.date.localeCompare(b.date)));
+            setSignups(sups);
+            setLoading(false);
+            return;
+          }
+        }
+      }
+
+      const sups = await getSignups(profile.id);
       setCoord(profile);
+      setCoordId(profile.id);
       setEvents(evs.sort((a, b) => a.date.localeCompare(b.date)));
       setSignups(sups);
       setLoading(false);
@@ -358,13 +374,37 @@ function MemberPageInner() {
                 </div>
 
                 {visibleEvents.length === 0 ? (
-                  <div className="text-center py-16 text-gray-400">
+                  <div className="text-center py-12 text-gray-400">
                     <div className="text-5xl mb-3">📅</div>
-                    <p className="font-medium text-lg">No upcoming dates yet</p>
-                    <p className="text-base mt-1">Check back when your coordinator posts new dates</p>
+                    {events.filter(e => e.date >= cutoffStr).length > 0 ? (
+                      <>
+                        <p className="font-medium text-lg text-gray-600">No dates for {activeMonthDate.toLocaleDateString('en-US', { month: 'long' })}</p>
+                        <p className="text-base mt-1 mb-4">There are dates in other months though!</p>
+                        <button
+                          onClick={() => setShowAllMonths(true)}
+                          className="bg-orange-500 text-white px-6 py-3 rounded-xl text-base font-semibold hover:bg-orange-600 transition-colors"
+                        >
+                          See all upcoming dates →
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <p className="font-medium text-lg">No upcoming dates yet</p>
+                        <p className="text-base mt-1">Check back when your coordinator posts new dates</p>
+                      </>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-3 mt-4">
+                    {coord && (
+                      <div className="bg-white rounded-2xl px-4 py-3 shadow-sm border border-orange-100 flex items-center gap-3">
+                        <span className="text-2xl">🙏</span>
+                        <div>
+                          <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Coordinator</p>
+                          <p className="font-semibold text-gray-800 text-base">{coord.name}</p>
+                        </div>
+                      </div>
+                    )}
                     <p className="text-sm text-gray-500 font-semibold uppercase tracking-wide px-1">Upcoming Delivery Dates</p>
 
                     {visibleEvents.map(event => {
