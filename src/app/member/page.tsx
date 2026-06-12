@@ -59,15 +59,22 @@ function MemberPageInner() {
         setEvents(evs);
         setSignups(sups);
       } else {
-        // No coord param — load ALL coordinators and ALL their events
-        const allCoords = await getAllCoordinators();
-        const coordIds = allCoords.map(c => c.id);
-        const [allEvs, allSups] = await Promise.all([
-          getAllEvents(coordIds),
-          getAllSignups(coordIds),
-        ]);
+        // No coord param — load ALL events first (publicly readable), then resolve coordinators
+        // This avoids RLS issues with listing the coordinators table directly.
+        const allEvs = await getAllEvents(); // no coordIds = raw Supabase query on events table
+        const uniqueCoordIds = [...new Set(allEvs.map(e => e.coord_id))];
+
+        // Fetch each coordinator individually (getCoordinator(id) works with public RLS)
+        const coordProfiles = await Promise.all(uniqueCoordIds.map(id => getCoordinator(id)));
+        const allCoords = coordProfiles.filter((c): c is CoordinatorProfile => c !== null);
+
+        // Fetch signups per coordinator
+        const supArrays = await Promise.all(uniqueCoordIds.map(id => getSignups(id)));
+        const allSups = supArrays.flat();
+
         const map = new Map(allCoords.map(c => [c.id, c]));
-        // Real coordinators (non-demo) for contact banner — pick the most recently added
+
+        // Contact banner: prefer a real (non-demo) coordinator
         const realCoords = allCoords.filter(c => c.id !== 'seva2024');
         const contactCoord = realCoords.length > 0 ? realCoords[realCoords.length - 1] : allCoords[allCoords.length - 1];
         if (contactCoord) {
@@ -75,8 +82,7 @@ function MemberPageInner() {
           setCoordId(contactCoord.id);
         }
         setCoordsById(map);
-        // Only show events whose coordinator exists in the map
-        setEvents(allEvs.filter(e => map.has(e.coord_id)));
+        setEvents(allEvs);
         setSignups(allSups);
       }
       setLoading(false);
