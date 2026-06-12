@@ -221,6 +221,34 @@ export async function getCoordinatorByUserId(userId: string): Promise<Coordinato
   return data as CoordinatorProfile;
 }
 
+/** Returns all coordinators (excluding the demo account). */
+export async function getAllCoordinators(): Promise<CoordinatorProfile[]> {
+  const { data } = await supabase
+    .from('coordinators')
+    .select('id,name,email,phone,address,signup_open_day,signup_open_override,signup_close_override,notify_on_signup')
+    .neq('id', 'seva2024')
+    .order('created_at', { ascending: true });
+  return (data ?? []) as CoordinatorProfile[];
+}
+
+/** Returns all events from all coordinators, sorted by date ascending. */
+export async function getAllEvents(): Promise<SevaEvent[]> {
+  const { data } = await supabase
+    .from('events')
+    .select('*')
+    .order('date', { ascending: true });
+  return (data ?? []) as SevaEvent[];
+}
+
+/** Returns all signups across all coordinators. */
+export async function getAllSignups(): Promise<Signup[]> {
+  const { data } = await supabase
+    .from('signups')
+    .select('*')
+    .order('signed_up_at', { ascending: true });
+  return (data ?? []) as Signup[];
+}
+
 /** Returns the first coordinator in the DB — used as fallback when no ?coord= param is in the URL. */
 export async function getDefaultCoordinator(): Promise<CoordinatorProfile | null> {
   // Prefer the most recently created non-demo coordinator

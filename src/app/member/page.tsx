@@ -5,7 +5,8 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   getEvents, getSignups, addSignup, removeSignup, getSlotsUsed,
-  getCoordinator, getDefaultCoordinator, isEventSignupOpen,
+  getCoordinator, getDefaultCoordinator, getAllCoordinators, getAllEvents, getAllSignups,
+  isEventSignupOpen,
   SevaEvent, Signup, ItemType, itemTypeLabel, CoordinatorProfile,
 } from '@/lib/db';
 import { googleCalendarUrl, formatTime } from '@/lib/ics';
@@ -24,6 +25,8 @@ function MemberPageInner() {
 
   const [coordId, setCoordId] = useState<string>('');
   const [coord, setCoord] = useState<CoordinatorProfile | null>(null);
+  // coordsById maps coord_id → profile, used for multi-coordinator display
+  const [coordsById, setCoordsById] = useState<Map<string, CoordinatorProfile>>(new Map());
   const [events, setEvents] = useState<SevaEvent[]>([]);
   const [signups, setSignups] = useState<Signup[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,7 +39,7 @@ function MemberPageInner() {
   // Track which event IDs THIS browser session signed up for (not all signups)
   const [mySignedUpEventIds, setMySignedUpEventIds] = useState<Set<string>>(new Set());
   const [signupLoading, setSignupLoading] = useState(false);
-  const [view, setView] = useState<'signup' | 'deliver'>('signup');
+  const [view, setView]            = useState<'signup' | 'deliver'>('signup');
   const [deliverPhone, setDeliverPhone] = useState('');
   const [mySignups,      setMySignups]      = useState<Signup[] | null>(null);
   const [myPastSignups,  setMyPastSignups]  = useState<Signup[]>([]);
@@ -45,56 +48,52 @@ function MemberPageInner() {
   useEffect(() => {
     async function load() {
       setLoading(true);
-      let profile = coordParam
-        ? await getCoordinator(coordParam)
-        : await getDefaultCoordinator();
-      if (!profile) { setLoading(false); return; }
-
-      // If the specified coord has no events, fall back to the default coordinator
-      const evs = await getEvents(profile.id);
-      if (evs.length === 0 && coordParam) {
-        const fallback = await getDefaultCoordinator();
-        if (fallback && fallback.id !== profile.id) {
-          const fallbackEvs = await getEvents(fallback.id);
-          if (fallbackEvs.length > 0) {
-            profile = fallback;
-            const sups = await getSignups(fallback.id);
-            setCoord(fallback);
-            setCoordId(fallback.id);
-            setEvents(fallbackEvs.sort((a, b) => a.date.localeCompare(b.date)));
-            setSignups(sups);
-            setLoading(false);
-            return;
-          }
+      if (coordParam) {
+        // Specific coordinator requested
+        const profile = await getCoordinator(coordParam) ?? await getDefaultCoordinator();
+        if (!profile) { setLoading(false); return; }
+        const [evs, sups] = await Promise.all([getEvents(profile.id), getSignups(profile.id)]);
+        setCoord(profile);
+        setCoordId(profile.id);
+        setCoordsById(new Map([[profile.id, profile]]));
+        setEvents(evs);
+        setSignups(sups);
+      } else {
+        // No coord param — load ALL coordinators and ALL their events
+        const [allCoords, allEvs, allSups] = await Promise.all([
+          getAllCoordinators(),
+          getAllEvents(),
+          getAllSignups(),
+        ]);
+        const map = new Map(allCoords.map(c => [c.id, c]));
+        // If there's only one real coordinator, also set coord for the contact banner
+        if (allCoords.length === 1) {
+          setCoord(allCoords[0]);
+          setCoordId(allCoords[0].id);
+        } else if (allCoords.length > 1) {
+          // Use the most recently added (last in ascending order) as fallback for contact
+          setCoord(allCoords[allCoords.length - 1]);
+          setCoordId(allCoords[allCoords.length - 1].id);
         }
+        setCoordsById(map);
+        setEvents(allEvs);
+        setSignups(allSups);
       }
-
-      const sups = await getSignups(profile.id);
-      setCoord(profile);
-      setCoordId(profile.id);
-      setEvents(evs.sort((a, b) => a.date.localeCompare(b.date)));
-      setSignups(sups);
       setLoading(false);
     }
     load();
   }, [coordParam]);
 
   const today = new Date().toISOString().slice(0, 10);
-  // Active month: if today is on or after the 16th, show NEXT month; otherwise current month
-  const activeMonthDate = new Date();
-  if (activeMonthDate.getDate() >= 16) activeMonthDate.setMonth(activeMonthDate.getMonth() + 1);
-  const activeMonthStr = `${activeMonthDate.getFullYear()}-${String(activeMonthDate.getMonth() + 1).padStart(2, '0')}`;
-  const [showAllMonths, setShowAllMonths] = useState(false);
 
-  // Show events until 48 hours after the event date, then auto-close
+  // Show events until 48 hours after the event date, then auto-hide
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - 2);
   const cutoffStr = cutoff.toISOString().slice(0, 10);
+  // Show ALL upcoming events — no month filter. Signup open/close controls what they can sign up for.
   let visibleEvents = events.filter(e => e.date >= cutoffStr);
   if (monthFilter) {
     visibleEvents = visibleEvents.filter(e => e.date.startsWith(monthFilter));
-  } else if (!showAllMonths) {
-    visibleEvents = visibleEvents.filter(e => e.date.startsWith(activeMonthStr));
   }
 
   function getSlotInfo(event: SevaEvent) {
@@ -122,12 +121,15 @@ function MemberPageInner() {
     try {
       const signup = await addSignup({
         event_id: event.id,
-        coord_id: coordId,
+        coord_id: event.coord_id,
         member_name: name.trim(),
         member_phone: phone.replace(/\D/g, ''),
         item_type: itemType,
       });
-      const sups = await getSignups(coordId);
+      // Refresh all signups so slot counts stay accurate across coordinators
+      const sups = coordParam
+        ? await getSignups(event.coord_id)
+        : await getAllSignups();
       setSignups(sups);
       setJustSignedUp({ signup, event });
       setMySignedUpEventIds(prev => new Set([...prev, event.id]));
@@ -144,7 +146,7 @@ function MemberPageInner() {
     const cleaned = deliverPhone.replace(/\D/g, '');
     if (!cleaned) return;
     setFindLoading(true);
-    const allSignups = await getSignups(coordId);
+    const allSignups = coordParam ? await getSignups(coordId) : await getAllSignups();
     const mine = allSignups.filter(s => s.member_phone.replace(/\D/g, '') === cleaned);
     setMySignups(mine.filter(s => s.status === 'pending'));
     setMyPastSignups(mine.filter(s => s.status === 'delivered'));
@@ -313,10 +315,13 @@ function MemberPageInner() {
                 )}
 
                 {/* Signup open/close banner — computed from first visible event */}
-                {coord && visibleEvents.length > 0 && (() => {
-                  const firstOpen = visibleEvents.find(e => isEventSignupOpen(e, coord));
+                {visibleEvents.length > 0 && (() => {
+                  const firstOpen = visibleEvents.find(e => {
+                    const c = coordsById.get(e.coord_id);
+                    return c ? isEventSignupOpen(e, c) : false;
+                  });
                   if (firstOpen) {
-                    // At least one event is open
+                    const c = coordsById.get(firstOpen.coord_id)!;
                     const dow = new Date(firstOpen.date + 'T00:00:00').getDay();
                     const closeDate = new Date(firstOpen.date + 'T00:00:00');
                     closeDate.setDate(closeDate.getDate() - (dow === 0 ? 0 : dow));
@@ -329,6 +334,7 @@ function MemberPageInner() {
                           <p className="font-semibold text-green-800 text-base">Sign-ups are open!</p>
                           <p className="text-sm text-green-600 mt-0.5">
                             {days === 0 ? 'Closes today at 10am' : days === 1 ? 'Closes tomorrow at 10am' : `Closes in ${days} days`}
+                            {c && coordsById.size > 1 ? ` · ${c.name}` : ''}
                           </p>
                         </div>
                       </div>
@@ -376,27 +382,13 @@ function MemberPageInner() {
                 {visibleEvents.length === 0 ? (
                   <div className="text-center py-12 text-gray-400">
                     <div className="text-5xl mb-3">📅</div>
-                    {events.filter(e => e.date >= cutoffStr).length > 0 ? (
-                      <>
-                        <p className="font-medium text-lg text-gray-600">No dates for {activeMonthDate.toLocaleDateString('en-US', { month: 'long' })}</p>
-                        <p className="text-base mt-1 mb-4">There are dates in other months though!</p>
-                        <button
-                          onClick={() => setShowAllMonths(true)}
-                          className="bg-orange-500 text-white px-6 py-3 rounded-xl text-base font-semibold hover:bg-orange-600 transition-colors"
-                        >
-                          See all upcoming dates →
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <p className="font-medium text-lg">No upcoming dates yet</p>
-                        <p className="text-base mt-1">Check back when your coordinator posts new dates</p>
-                      </>
-                    )}
+                    <p className="font-medium text-lg">No upcoming dates yet</p>
+                    <p className="text-base mt-1">Check back when your coordinator posts new dates</p>
                   </div>
                 ) : (
                   <div className="space-y-3 mt-4">
-                    {coord && (
+                    {/* Show coordinator name when there's exactly one coordinator */}
+                    {coordsById.size === 1 && coord && (
                       <div className="bg-white rounded-2xl px-4 py-3 shadow-sm border border-orange-100 flex items-center gap-3">
                         <span className="text-2xl">🙏</span>
                         <div>
@@ -414,11 +406,15 @@ function MemberPageInner() {
                       const totalSlots = event.meal_bag_slots + event.nutritional_slots;
                       const totalUsed = slots.mealBagUsed + slots.nutritionalUsed;
                       const isFull = slots.mealBagAvail === 0 && slots.nutritionalAvail === 0;
+                      const eventCoord = coordsById.get(event.coord_id);
 
                       return (
                         <div key={event.id} className="bg-white rounded-2xl p-4 shadow-sm border border-orange-100">
                           <div className="flex items-start justify-between mb-2">
                             <div>
+                              {coordsById.size > 1 && eventCoord && (
+                                <p className="text-xs text-orange-500 font-semibold uppercase tracking-wide mb-0.5">🙏 {eventCoord.name}</p>
+                              )}
                               <p className="font-semibold text-gray-800 text-base">{formatDate(event.date)}</p>
                               <p className="text-sm text-gray-500 mt-0.5">🕕 Drop off: {formatTime(event.drop_off_start)} – {formatTime(event.drop_off_end)}</p>
                               <p className="text-sm text-gray-500 mt-0.5">📍 {event.drop_off_location}</p>
@@ -467,7 +463,7 @@ function MemberPageInner() {
                             </div>
                           ) : isFull ? (
                             <div className="text-center py-2 text-base text-red-400 font-medium">All slots filled</div>
-                          ) : !isEventSignupOpen(event, coord!) ? (
+                          ) : !eventCoord || !isEventSignupOpen(event, eventCoord) ? (
                             // Signups closed for this event — show who is delivering
                             (() => {
                               const evSignups = signups.filter(s => s.event_id === event.id);
@@ -510,14 +506,6 @@ function MemberPageInner() {
                         </div>
                       );
                     })}
-                    {!monthFilter && (
-                      <button
-                        onClick={() => setShowAllMonths(v => !v)}
-                        className="w-full py-3 text-sm text-orange-500 font-medium border border-orange-100 rounded-2xl hover:bg-orange-50 transition-colors"
-                      >
-                        {showAllMonths ? '← Show current month only' : 'See all upcoming months →'}
-                      </button>
-                    )}
                   </div>
                 )}
               </>
