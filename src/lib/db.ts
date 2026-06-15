@@ -139,17 +139,6 @@ export function getSignupWindowFromEvents(
   return { open, close };
 }
 
-/**
- * Is the signup window open for a SPECIFIC event?
- * Opens 16th of the month before the event month.
- * Closes Sunday 10am of the event's delivery week.
- */
-export function isEventSignupOpen(event: SevaEvent, _coord: CoordinatorProfile): boolean {
-  // Signups are always open until the event day has passed
-  const now = new Date();
-  const eventDate = new Date(event.date + 'T23:59:59');
-  return now <= eventDate;
-}
 
 const DEFAULT_ADDRESS  = '925 Roselma Pl, Pleasanton CA 94566';
 const DEFAULT_PHONE    = '9258904273';
