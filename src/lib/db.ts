@@ -144,7 +144,7 @@ export function getSignupWindowFromEvents(
  * Opens 16th of the month before the event month.
  * Closes Sunday 10am of the event's delivery week.
  */
-export function isEventSignupOpen(event: SevaEvent, coord: CoordinatorProfile): boolean {
+export function isEventSignupOpen(event: SevaEvent, _coord: CoordinatorProfile): boolean {
   // Signups are always open until the event day has passed
   const now = new Date();
   const eventDate = new Date(event.date + 'T23:59:59');
