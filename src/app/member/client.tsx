@@ -5,7 +5,6 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   getSignups, addSignup, removeSignup, getSlotsUsed,
-  isEventSignupOpen,
   SevaEvent, Signup, ItemType, itemTypeLabel, CoordinatorProfile,
 } from '@/lib/db';
 import { googleCalendarUrl, formatTime } from '@/lib/ics';
@@ -284,46 +283,16 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
                   </div>
                 )}
 
-                {/* Signup open/close banner */}
-                {visibleEvents.length > 0 && (() => {
-                  const firstOpen = visibleEvents.find(e => {
-                    const c = coordsById.get(e.coord_id);
-                    return c ? isEventSignupOpen(e, c) : false;
-                  });
-                  if (firstOpen) {
-                    const c = coordsById.get(firstOpen.coord_id)!;
-                    const dow = new Date(firstOpen.date + 'T00:00:00').getDay();
-                    const closeDate = new Date(firstOpen.date + 'T00:00:00');
-                    closeDate.setDate(closeDate.getDate() - (dow === 0 ? 0 : dow));
-                    closeDate.setHours(10, 0, 0);
-                    const days = Math.max(0, Math.ceil((closeDate.getTime() - Date.now()) / 86400000));
-                    return (
-                      <div className="mt-4 bg-green-50 border border-green-200 rounded-2xl px-4 py-3 flex items-center gap-3">
-                        <span className="text-2xl">✅</span>
-                        <div>
-                          <p className="font-semibold text-green-800 text-base">Sign-ups are open!</p>
-                          <p className="text-sm text-green-600 mt-0.5">
-                            {days === 0 ? 'Closes today at 10am' : days === 1 ? 'Closes tomorrow at 10am' : `Closes in ${days} days`}
-                            {c && coordsById.size > 1 ? ` · ${c.name}` : ''}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  }
-                  const nextOpenEvent = visibleEvents[0];
-                  if (!nextOpenEvent) return null;
-                  const ed = new Date(nextOpenEvent.date + 'T00:00:00');
-                  const em = ed.getMonth(), ey = ed.getFullYear();
-                  const openDate = new Date(em === 0 ? ey - 1 : ey, em === 0 ? 11 : em - 1, 16);
-                  return (
-                    <div className="mt-4 bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3">
-                      <p className="font-semibold text-blue-800 text-base">🗓 Sign-ups not open yet</p>
-                      <p className="text-sm text-blue-600 mt-0.5">
-                        Opens {openDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}
-                      </p>
+                {/* Signup open banner */}
+                {visibleEvents.length > 0 && (
+                  <div className="mt-4 bg-green-50 border border-green-200 rounded-2xl px-4 py-3 flex items-center gap-3">
+                    <span className="text-2xl">✅</span>
+                    <div>
+                      <p className="font-semibold text-green-800 text-base">Sign-ups are open!</p>
+                      <p className="text-sm text-green-600 mt-0.5">Sign up for any upcoming date below</p>
                     </div>
-                  );
-                })()}
+                  </div>
+                )}
 
                 {/* Drop-off banner */}
                 <div className="mt-4 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
@@ -431,10 +400,10 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
                             </div>
                           ) : isFull ? (
                             <div className="text-center py-2 text-base text-red-400 font-medium">All slots filled</div>
-                          ) : !eventCoord || !isEventSignupOpen(event, eventCoord) ? (
+                          ) : event.date < today ? (
                             (() => {
                               const evSignups = signups.filter(s => s.event_id === event.id);
-                              if (evSignups.length === 0) return <div className="text-center py-2 text-sm text-gray-400">Signups not open yet</div>;
+                              if (evSignups.length === 0) return <div className="text-center py-2 text-sm text-gray-400">Event passed</div>;
                               return (
                                 <div className="bg-purple-50 border border-purple-100 rounded-xl p-3">
                                   <p className="text-xs font-semibold text-purple-700 mb-2">🔒 Signups closed — delivering this week:</p>
