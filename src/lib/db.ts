@@ -145,21 +145,10 @@ export function getSignupWindowFromEvents(
  * Closes Sunday 10am of the event's delivery week.
  */
 export function isEventSignupOpen(event: SevaEvent, coord: CoordinatorProfile): boolean {
-  // Admin overrides win globally
-  if (coord.signup_open_override && coord.signup_close_override) {
-    const now = new Date();
-    return now >= new Date(coord.signup_open_override + 'T00:00:00') &&
-           now <= new Date(coord.signup_close_override + 'T23:59:59');
-  }
+  // Signups are always open until the event day has passed
   const now = new Date();
-  const eventDate = new Date(event.date + 'T00:00:00');
-  const em = eventDate.getMonth(), ey = eventDate.getFullYear();
-  const open = new Date(em === 0 ? ey - 1 : ey, em === 0 ? 11 : em - 1, 16, 0, 0, 0);
-  const dow = eventDate.getDay();
-  const close = new Date(eventDate);
-  close.setDate(close.getDate() - (dow === 0 ? 0 : dow)); // back to Sunday of that week
-  close.setHours(10, 0, 0, 0); // 10am Sunday
-  return now >= open && now <= close;
+  const eventDate = new Date(event.date + 'T23:59:59');
+  return now <= eventDate;
 }
 
 const DEFAULT_ADDRESS  = '925 Roselma Pl, Pleasanton CA 94566';
