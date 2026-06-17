@@ -85,7 +85,7 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
     const { mealBagUsed, nutritionalUsed } = getSlotsUsed(event.id, signups);
     return {
       mealBagAvail: Math.max(0, event.meal_bag_slots - mealBagUsed),
-      nutritionalAvail: Infinity, // nutritional slots are uncapped
+      nutritionalAvail: Math.max(0, event.nutritional_slots - nutritionalUsed),
       mealBagUsed,
       nutritionalUsed,
     };
@@ -341,7 +341,7 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
                       const slots = getSlotInfo(event);
                       const alreadyIn = mySignedUpEventIds.has(event.id);
                       const mySignup = signups.find(s => s.event_id === event.id && mySignedUpEventIds.has(event.id));
-                      const isFull = slots.mealBagAvail === 0; // only meal bags have a cap
+                      const isFull = slots.mealBagAvail === 0 && slots.nutritionalAvail === 0;
                       const eventCoord = coordsById.get(event.coord_id);
 
                       return (
@@ -357,20 +357,17 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
                               {event.note && <p className="text-sm text-orange-600 font-medium mt-0.5">📌 {event.note}</p>}
                             </div>
                             {isFull ? (
-                              <span className="text-sm bg-red-100 text-red-600 px-2 py-1 rounded-full font-medium">Meal bags full</span>
+                              <span className="text-sm bg-red-100 text-red-600 px-2 py-1 rounded-full font-medium">Full</span>
                             ) : (
                               <span className="text-sm bg-orange-100 text-orange-600 px-2 py-1 rounded-full font-medium">
-                                {slots.mealBagAvail} left
+                                {slots.mealBagAvail + slots.nutritionalAvail} left
                               </span>
                             )}
                           </div>
 
                           <div className="space-y-1.5 mb-3">
                             <SlotBar label="Meal Bags" used={slots.mealBagUsed} total={event.meal_bag_slots} />
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="text-gray-500 w-28">Nutritional</span>
-                              <span className="text-gray-500 text-xs">{slots.nutritionalUsed} signed up</span>
-                            </div>
+                            <SlotBar label="Nutritional" used={slots.nutritionalUsed} total={event.nutritional_slots} />
                           </div>
 
                           {(() => {
@@ -612,6 +609,7 @@ function SignupForm({
 }) {
   const neitherSelected = !wantsMeals && !wantsNutritional;
   const mealsDisabled = slots.mealBagAvail === 0;
+  const nutritionalDisabled = slots.nutritionalAvail === 0;
   const canConfirm = name.trim().length > 0 && phone.replace(/\D/g, '').length >= 7 && !neitherSelected;
 
   return (
@@ -636,13 +634,16 @@ function SignupForm({
           </div>
         </label>
         <label className={`flex items-center gap-3 p-3.5 rounded-xl border-2 transition-colors cursor-pointer ${
-          wantsNutritional ? 'border-orange-400 bg-orange-50' : 'border-gray-200 bg-gray-50'
+          nutritionalDisabled ? 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'
+            : wantsNutritional ? 'border-orange-400 bg-orange-50' : 'border-gray-200 bg-gray-50'
         }`}>
-          <input type="checkbox" checked={wantsNutritional} onChange={e => setWantsNutritional(e.target.checked)} className="w-5 h-5 accent-orange-500" />
+          <input type="checkbox" checked={wantsNutritional} disabled={nutritionalDisabled} onChange={e => !nutritionalDisabled && setWantsNutritional(e.target.checked)} className="w-5 h-5 accent-orange-500" />
           <span className="text-2xl">🥗</span>
           <div>
             <p className="text-base font-semibold text-gray-700">Nutritional Items</p>
-            <p className="text-sm text-gray-400">Always open</p>
+            <p className={`text-sm ${nutritionalDisabled ? 'text-red-400' : 'text-gray-400'}`}>
+              {nutritionalDisabled ? 'No slots left' : `${slots.nutritionalAvail} spot${slots.nutritionalAvail !== 1 ? 's' : ''} left`}
+            </p>
           </div>
         </label>
         {neitherSelected && <p className="text-sm text-red-500 px-1">Please select at least one option</p>}
