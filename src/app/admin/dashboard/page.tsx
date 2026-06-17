@@ -283,9 +283,7 @@ export default function AdminDashboard() {
   }
 
   function handleCopyMonthLink() {
-    const month = new Date().toISOString().slice(0, 7);
-    const url = `${memberUrl}&month=${month}`;
-    navigator.clipboard.writeText(url);
+    navigator.clipboard.writeText(memberUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
@@ -531,7 +529,6 @@ export default function AdminDashboard() {
   }
 
   const today = new Date().toISOString().slice(0, 10);
-  const currentMonth = today.slice(0, 7);
   const upcomingEvents = events.filter(e => e.date >= today);
   const pastEvents = events.filter(e => e.date < today);
   const totalSignups = signups.length;
@@ -566,8 +563,7 @@ export default function AdminDashboard() {
   const selectedSignups = selectedEvent ? eventSignups(selectedEvent) : [];
   const pendingSignups = selectedSignups.filter(s => s.status === 'pending');
 
-  const monthLinkUrl = `${memberUrl}&month=${currentMonth}`;
-  const waMsg = encodeURIComponent(`Hey! Sign up for this month's Seva Commons meal bag delivery dates:\n${monthLinkUrl}`);
+  const waMsg = encodeURIComponent(`Hey! Sign up for Seva Commons meal bag delivery dates:\n${memberUrl}`);
   const waUrl = `https://wa.me/?text=${waMsg}`;
 
   if (loading) {
@@ -695,9 +691,9 @@ export default function AdminDashboard() {
 
             <div className="bg-orange-500 rounded-2xl p-4 text-white">
               <p className="font-bold text-base mb-0.5">Member Sign-Up Link</p>
-              <p className="text-orange-100 text-sm mb-3">This month only — share with your volunteers</p>
+              <p className="text-orange-100 text-sm mb-3">Share with your volunteers to sign up</p>
               <div className="bg-white/20 rounded-xl px-3 py-2 flex items-center justify-between gap-2 mb-2">
-                <p className="text-sm font-mono truncate">{monthLinkUrl}</p>
+                <p className="text-sm font-mono truncate">{memberUrl}</p>
                 <button onClick={handleCopyMonthLink} className="flex-shrink-0 bg-white text-orange-600 text-sm font-bold px-3 py-1.5 rounded-lg hover:bg-orange-50">
                   {copied ? '✓ Copied!' : 'Copy'}
                 </button>
