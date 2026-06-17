@@ -198,6 +198,7 @@ export default function AdminDashboard() {
 
   // Edit event state
   const [editingSlots, setEditingSlots] = useState(false);
+  const [editDate, setEditDate] = useState('');
   const [editMealBag, setEditMealBag] = useState(7);
   const [editNutritional, setEditNutritional] = useState(3);
   const [editDropStart, setEditDropStart] = useState('18:00');
@@ -353,6 +354,7 @@ export default function AdminDashboard() {
 
   function openEvent(event: SevaEvent) {
     setSelectedEvent(event.id);
+    setEditDate(event.date);
     setEditMealBag(event.meal_bag_slots);
     setEditNutritional(event.nutritional_slots);
     setEditDropStart(event.drop_off_start);
@@ -368,6 +370,7 @@ export default function AdminDashboard() {
   async function saveEventEdits(id: string) {
     setEditSaving(true);
     await updateEvent(id, {
+      date: editDate,
       meal_bag_slots: editMealBag,
       nutritional_slots: editNutritional,
       drop_off_start: editDropStart,
@@ -797,6 +800,10 @@ export default function AdminDashboard() {
 
               {editingSlots ? (
                 <div className="mt-4 pt-4 border-t border-gray-100 space-y-3">
+                  <div>
+                    <label className="text-sm text-gray-500 block mb-1">📅 Date</label>
+                    <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-orange-400" />
+                  </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-sm text-gray-500 block mb-1">🛍 Meal Bag Slots</label>
