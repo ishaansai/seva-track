@@ -261,7 +261,7 @@ export async function getDefaultCoordinator(): Promise<CoordinatorProfile | null
  *  service role key off the browser. This client helper calls that route. */
 export async function registerCoordinator(data: {
   name: string; email: string; password: string; phone: string; address: string;
-}): Promise<CoordinatorProfile> {
+}): Promise<void> {
   const res = await fetch('/api/auth/register', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -269,9 +269,7 @@ export async function registerCoordinator(data: {
   });
   const json = await res.json();
   if (!res.ok) throw new Error(json.error ?? 'Registration failed');
-
-  // Sign in immediately after registration so the client has a session
-  return signInCoordinator(data.email, data.password);
+  // Do NOT sign in — account is pending approval
 }
 
 export async function updateCoordinator(
