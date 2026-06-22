@@ -533,3 +533,30 @@ export function downloadCsv(events: SevaEvent[], signups: Signup[], monthFilter?
 }
 
 export { DEFAULT_ADDRESS, DEFAULT_PHONE, DEFAULT_COORD_ID };
+
+// ─── Members (volunteer contact list) ────────────────────────────────────────
+
+export interface Member {
+  id: string;
+  coord_id: string;
+  name: string;
+  phone: string;
+  created_at: string;
+}
+
+export async function getMembers(coordId: string): Promise<Member[]> {
+  const { data } = await supabase
+    .from('members')
+    .select('*')
+    .eq('coord_id', coordId)
+    .order('name', { ascending: true });
+  return (data ?? []) as Member[];
+}
+
+export async function addMember(coordId: string, name: string, phone: string): Promise<void> {
+  await supabase.from('members').insert({ coord_id: coordId, name, phone });
+}
+
+export async function removeMember(id: string): Promise<void> {
+  await supabase.from('members').delete().eq('id', id);
+}

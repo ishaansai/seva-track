@@ -9,7 +9,8 @@ import {
   getCoordinator, getCoordinatorByUserId, updateCoordinator,
   updateCoordinatorPassword, signOutCoordinator,
   getMemberContributions, setMemberAdjustment, downloadCsv,
-  SevaEvent, Signup, ItemType, itemTypeLabel, CoordinatorProfile, MemberContribution,
+  getMembers, addMember, removeMember,
+  SevaEvent, Signup, ItemType, itemTypeLabel, CoordinatorProfile, MemberContribution, Member,
 } from '@/lib/db';
 import { supabase } from '@/lib/supabase';
 import { formatTime } from '@/lib/ics';
@@ -214,6 +215,12 @@ export default function AdminDashboard() {
   const [addNutritional, setAddNutritional] = useState(false);
   const [addLoading, setAddLoading] = useState(false);
 
+  // WhatsApp contact list (volunteers to notify when signups open)
+  const [contactList, setContactList] = useState<Member[]>([]);
+  const [newContactName, setNewContactName] = useState('');
+  const [newContactPhone, setNewContactPhone] = useState('');
+  const [contactSaving, setContactSaving] = useState(false);
+
   // Settings form
   const [settingsName, setSettingsName] = useState('');
   const [settingsPassword, setSettingsPassword] = useState('');
@@ -251,11 +258,12 @@ export default function AdminDashboard() {
 
   async function loadAll(cid: string) {
     setLoading(true);
-    const [profile, evs, sups, contribs] = await Promise.all([
+    const [profile, evs, sups, contribs, contacts] = await Promise.all([
       getCoordinator(cid),
       getEvents(cid),
       getSignups(cid),
       getMemberContributions(cid),
+      getMembers(cid),
     ]);
     if (!profile) { router.push('/admin'); return; }
     setCoord(profile);
@@ -268,6 +276,7 @@ export default function AdminDashboard() {
     setEvents(evs.sort((a, b) => a.date.localeCompare(b.date)));
     setSignups(sups);
     setContributions(contribs);
+    setContactList(contacts);
     setLoading(false);
   }
 
@@ -329,6 +338,18 @@ export default function AdminDashboard() {
       drop_off_location: dropOffLocation.trim() || coord?.address || '',
       note: note.trim() || undefined,
     }, coordId)));
+
+    // Notify members that signups are open for these new dates
+    try {
+      const signupUrl = memberUrl || (window.location.origin + '/member?coord=' + coordId);
+      await fetch('/api/notify/signup-open', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ coordId, signupUrl, dates: allEvents.map(e => e.date) }),
+      });
+    } catch {
+      // Non-fatal — events were created successfully even if notification fails
+    }
 
     setNewDates(['', '', '', '']);
     setNewNotes(['', '', '', '']);
@@ -1455,6 +1476,63 @@ Thank you for your seva! 🙏`}
               <p className="text-sm font-semibold text-orange-800 mb-1">Your member link</p>
               <p className="text-sm text-orange-700 font-mono break-all">{memberUrl}</p>
               <p className="text-xs text-orange-600 mt-2">Share this with your volunteers. Each coordinator has their own unique link.</p>
+            </div>
+
+            {/* WhatsApp notification contact list */}
+            <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 space-y-4">
+              <div>
+                <h2 className="font-bold text-gray-800 text-lg">💬 WhatsApp Notification List</h2>
+                <p className="text-sm text-gray-400 mt-0.5">These volunteers get an automatic WhatsApp message when you create new delivery dates and 3-day + 1-day reminders before each delivery.</p>
+              </div>
+
+              {/* Add contact */}
+              <div className="space-y-2">
+                <input type="text" placeholder="Volunteer name" value={newContactName} onChange={e => setNewContactName(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400" />
+                <input type="tel" inputMode="numeric" placeholder="Phone number" value={newContactPhone} onChange={e => setNewContactPhone(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400" />
+                <button
+                  disabled={!newContactName.trim() || !newContactPhone.trim() || contactSaving}
+                  onClick={async () => {
+                    if (!newContactName.trim() || !newContactPhone.trim()) return;
+                    setContactSaving(true);
+                    await addMember(coordId, newContactName.trim(), newContactPhone.trim());
+                    const updated = await getMembers(coordId);
+                    setContactList(updated);
+                    setNewContactName('');
+                    setNewContactPhone('');
+                    setContactSaving(false);
+                  }}
+                  className="w-full bg-green-500 hover:bg-green-600 disabled:opacity-40 text-white py-3 rounded-xl text-base font-semibold transition-colors"
+                >
+                  {contactSaving ? 'Adding…' : '+ Add to List'}
+                </button>
+              </div>
+
+              {/* Contact list */}
+              {contactList.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-2">No contacts yet — add volunteers above to start sending automatic reminders.</p>
+              ) : (
+                <div className="space-y-2">
+                  {contactList.map(m => (
+                    <div key={m.id} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800">{m.name}</p>
+                        <p className="text-xs text-gray-400">{m.phone}</p>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          await removeMember(m.id);
+                          setContactList(prev => prev.filter(x => x.id !== m.id));
+                        }}
+                        className="text-xs text-red-400 hover:text-red-600 border border-gray-200 rounded-lg px-2 py-1 transition-colors"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
