@@ -43,6 +43,7 @@ export async function POST(req: NextRequest) {
         address:         address?.trim() || DEFAULT_ADDRESS,
         signup_open_day: 15,
         user_id:         userId,
+        approved:        false,
       });
 
     if (dbError) {
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: dbError.message }, { status: 500 });
     }
 
-    return NextResponse.json({ coordId });
+    return NextResponse.json({ coordId, pending: true });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Internal server error';
     return NextResponse.json({ error: msg }, { status: 500 });

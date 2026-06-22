@@ -10,6 +10,7 @@ import {
   updateCoordinatorPassword, signOutCoordinator,
   getMemberContributions, setMemberAdjustment, downloadCsv,
   getMembers, addMember, removeMember,
+  getPendingCoordinators, approveCoordinator, rejectCoordinator,
   SevaEvent, Signup, ItemType, itemTypeLabel, CoordinatorProfile, MemberContribution, Member,
 } from '@/lib/db';
 import { supabase } from '@/lib/supabase';
@@ -164,6 +165,7 @@ export default function AdminDashboard() {
   const [events, setEvents] = useState<SevaEvent[]>([]);
   const [signups, setSignups] = useState<Signup[]>([]);
   const [contributions, setContributions] = useState<MemberContribution[]>([]);
+  const [pendingCoords, setPendingCoords] = useState<CoordinatorProfile[]>([]);
 
   // CSV export month filter
   const [csvMonth, setCsvMonth] = useState('');
@@ -258,12 +260,14 @@ export default function AdminDashboard() {
 
   async function loadAll(cid: string) {
     setLoading(true);
-    const [profile, evs, sups, contribs, contacts] = await Promise.all([
+    const isApprover = cid === 'ndsw75' || cid === 'g8rla2';
+    const [profile, evs, sups, contribs, contacts, pending] = await Promise.all([
       getCoordinator(cid),
       getEvents(cid),
       getSignups(cid),
       getMemberContributions(cid),
       getMembers(cid),
+      isApprover ? getPendingCoordinators() : Promise.resolve([]),
     ]);
     if (!profile) { router.push('/admin'); return; }
     setCoord(profile);
@@ -277,6 +281,7 @@ export default function AdminDashboard() {
     setSignups(sups);
     setContributions(contribs);
     setContactList(contacts);
+    setPendingCoords(pending);
     setLoading(false);
   }
 
@@ -1533,6 +1538,45 @@ Thank you for your seva! 🙏`}
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* ── PENDING APPROVALS (Ishaan + Anupama only) ── */}
+        {(coordId === 'ndsw75' || coordId === 'g8rla2') && pendingCoords.length > 0 && (
+          <div className="mt-4">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-5 shadow-sm space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">⏳</span>
+                <h2 className="font-bold text-gray-800 text-base">Pending Coordinator Approvals</h2>
+                <span className="ml-auto bg-yellow-400 text-white text-xs font-bold px-2 py-0.5 rounded-full">{pendingCoords.length}</span>
+              </div>
+              {pendingCoords.map(p => (
+                <div key={p.id} className="bg-white rounded-xl p-4 border border-yellow-100 space-y-1">
+                  <p className="font-semibold text-gray-800">{p.name}</p>
+                  <p className="text-sm text-gray-500">{p.email}</p>
+                  {p.phone && <p className="text-sm text-gray-400">{p.phone}</p>}
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      onClick={async () => {
+                        await approveCoordinator(p.id);
+                        setPendingCoords(prev => prev.filter(c => c.id !== p.id));
+                      }}
+                      className="flex-1 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold py-2 rounded-xl transition-colors">
+                      Approve
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!confirm(`Reject ${p.name}'s account? This will delete it permanently.`)) return;
+                        await rejectCoordinator(p.id);
+                        setPendingCoords(prev => prev.filter(c => c.id !== p.id));
+                      }}
+                      className="flex-1 bg-red-100 hover:bg-red-200 text-red-600 text-sm font-semibold py-2 rounded-xl transition-colors">
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}

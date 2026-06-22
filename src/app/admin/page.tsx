@@ -29,8 +29,9 @@ export default function AdminLogin() {
   const [newPassword2,   setNewPassword2]   = useState('');
   const [passwordSaved,  setPasswordSaved]  = useState(false);
 
-  const [error,   setError]   = useState('');
-  const [loading, setLoading] = useState(false);
+  const [error,               setError]               = useState('');
+  const [loading,             setLoading]             = useState(false);
+  const [registrationPending, setRegistrationPending] = useState(false);
   const router = useRouter();
 
   // Detect recovery token in URL hash from Supabase reset email
@@ -83,7 +84,7 @@ export default function AdminLogin() {
         phone:    regPhone.replace(/\D/g, ''),
         address:  regAddress.trim() || DEFAULT_ADDRESS,
       });
-      router.push('/admin/dashboard');
+      setRegistrationPending(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not create account. Try a different email.');
     } finally {
@@ -197,26 +198,40 @@ export default function AdminLogin() {
 
           {mode === 'register' && (
             <div className="space-y-3">
-              <input type="text" placeholder="Your name or chapter name *"
-                value={regName} onChange={e => { setRegName(e.target.value); setError(''); }}
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400" />
-              <input type="email" placeholder="Email address *"
-                value={regEmail} onChange={e => { setRegEmail(e.target.value); setError(''); }}
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400" />
-              <input type="password" placeholder="Choose a password * (min 6 chars)"
-                value={regPassword} onChange={e => { setRegPassword(e.target.value); setError(''); }}
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400" />
-              <input type="text" inputMode="numeric" placeholder="Your phone number"
-                value={regPhone} onChange={e => setRegPhone(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400" />
-              <input type="text" placeholder="Default drop-off address"
-                value={regAddress} onChange={e => setRegAddress(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400" />
-              {error && <p className="text-red-500 text-sm">{error}</p>}
-              <button onClick={handleRegister} disabled={loading}
-                className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white py-3 rounded-xl font-semibold text-base transition-colors">
-                {loading ? 'Creating…' : 'Create Account'}
-              </button>
+              {registrationPending ? (
+                <div className="text-center py-4">
+                  <div className="text-4xl mb-3">⏳</div>
+                  <p className="font-semibold text-gray-800">Account created!</p>
+                  <p className="text-sm text-gray-500 mt-2">
+                    Your account is <strong>pending approval</strong> from Ishaan or Anupama. You&apos;ll be able to log in once it&apos;s approved.
+                  </p>
+                  <button onClick={() => { setMode('login'); setRegistrationPending(false); setError(''); }}
+                    className="mt-4 text-orange-500 font-semibold text-sm">← Back to Login</button>
+                </div>
+              ) : (
+                <>
+                  <input type="text" placeholder="Your name or chapter name *"
+                    value={regName} onChange={e => { setRegName(e.target.value); setError(''); }}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400" />
+                  <input type="email" placeholder="Email address *"
+                    value={regEmail} onChange={e => { setRegEmail(e.target.value); setError(''); }}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400" />
+                  <input type="password" placeholder="Choose a password * (min 6 chars)"
+                    value={regPassword} onChange={e => { setRegPassword(e.target.value); setError(''); }}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400" />
+                  <input type="text" inputMode="numeric" placeholder="Your phone number"
+                    value={regPhone} onChange={e => setRegPhone(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400" />
+                  <input type="text" placeholder="Default drop-off address"
+                    value={regAddress} onChange={e => setRegAddress(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400" />
+                  {error && <p className="text-red-500 text-sm">{error}</p>}
+                  <button onClick={handleRegister} disabled={loading}
+                    className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white py-3 rounded-xl font-semibold text-base transition-colors">
+                    {loading ? 'Creating…' : 'Create Account'}
+                  </button>
+                </>
+              )}
             </div>
           )}
 

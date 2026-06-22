@@ -2,7 +2,7 @@
  * db.ts — All Supabase database operations for Seva Track.
  * Every function is async and returns typed data.
  */
-import { supabase } from './supabase';
+import { supabase, createAdminClient } from './supabase';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -15,10 +15,11 @@ export interface CoordinatorProfile {
   email: string;
   phone: string;
   address: string;
-  signup_open_day: number;       // day of month signups open (default 15)
-  signup_open_override:  string | null; // YYYY-MM-DD
-  signup_close_override: string | null; // YYYY-MM-DD
-  notify_on_signup: boolean;     // send WhatsApp notification to coordinator on new signup
+  signup_open_day: number;
+  signup_open_override:  string | null;
+  signup_close_override: string | null;
+  notify_on_signup: boolean;
+  approved: boolean;
 }
 
 export interface SevaEvent {
@@ -155,6 +156,7 @@ export async function signInCoordinator(
   if (error || !data.user) throw new Error(error?.message ?? 'Login failed');
   const coord = await getCoordinatorByUserId(data.user.id);
   if (!coord) throw new Error('No coordinator account found for this login.');
+  if (!coord.approved) throw new Error('Your account is pending approval. Please contact Ishaan or Anupama.');
   return coord;
 }
 
@@ -182,7 +184,7 @@ export async function updateCoordinatorPassword(newPassword: string): Promise<vo
 export async function getCoordinator(id: string): Promise<CoordinatorProfile | null> {
   const { data, error } = await supabase
     .from('coordinators')
-    .select('id,name,email,phone,address,signup_open_day,signup_open_override,signup_close_override,notify_on_signup')
+    .select('id,name,email,phone,address,signup_open_day,signup_open_override,signup_close_override,notify_on_signup,approved')
     .eq('id', id)
     .single();
   if (error || !data) return null;
@@ -192,7 +194,7 @@ export async function getCoordinator(id: string): Promise<CoordinatorProfile | n
 export async function getCoordinatorByUserId(userId: string): Promise<CoordinatorProfile | null> {
   const { data, error } = await supabase
     .from('coordinators')
-    .select('id,name,email,phone,address,signup_open_day,signup_open_override,signup_close_override,notify_on_signup')
+    .select('id,name,email,phone,address,signup_open_day,signup_open_override,signup_close_override,notify_on_signup,approved')
     .eq('user_id', userId)
     .single();
   if (error || !data) return null;
@@ -203,7 +205,7 @@ export async function getCoordinatorByUserId(userId: string): Promise<Coordinato
 export async function getAllCoordinators(): Promise<CoordinatorProfile[]> {
   const { data } = await supabase
     .from('coordinators')
-    .select('id,name,email,phone,address,signup_open_day,signup_open_override,signup_close_override,notify_on_signup')
+    .select('id,name,email,phone,address,signup_open_day,signup_open_override,signup_close_override,notify_on_signup,approved')
     .order('created_at', { ascending: true });
   return (data ?? []) as CoordinatorProfile[];
 }
@@ -240,7 +242,7 @@ export async function getDefaultCoordinator(): Promise<CoordinatorProfile | null
   // Prefer the most recently created non-demo coordinator
   const { data, error } = await supabase
     .from('coordinators')
-    .select('id,name,email,phone,address,signup_open_day,signup_open_override,signup_close_override,notify_on_signup')
+    .select('id,name,email,phone,address,signup_open_day,signup_open_override,signup_close_override,notify_on_signup,approved')
     .neq('id', 'seva2024')
     .order('created_at', { ascending: false })
     .limit(1)
@@ -249,7 +251,7 @@ export async function getDefaultCoordinator(): Promise<CoordinatorProfile | null
   // Fall back to seva2024 if no other coordinator exists
   const { data: fallback } = await supabase
     .from('coordinators')
-    .select('id,name,email,phone,address,signup_open_day,signup_open_override,signup_close_override,notify_on_signup')
+    .select('id,name,email,phone,address,signup_open_day,signup_open_override,signup_close_override,notify_on_signup,approved')
     .eq('id', 'seva2024')
     .single();
   return fallback as CoordinatorProfile ?? null;
@@ -559,4 +561,26 @@ export async function addMember(coordId: string, name: string, phone: string): P
 
 export async function removeMember(id: string): Promise<void> {
   await supabase.from('members').delete().eq('id', id);
+}
+
+// ─── Coordinator approval (admin only) ───────────────────────────────────────
+
+export async function getPendingCoordinators(): Promise<CoordinatorProfile[]> {
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from('coordinators')
+    .select('id,name,email,phone,address,signup_open_day,signup_open_override,signup_close_override,notify_on_signup,approved')
+    .eq('approved', false)
+    .order('created_at', { ascending: true });
+  return (data ?? []) as CoordinatorProfile[];
+}
+
+export async function approveCoordinator(id: string): Promise<void> {
+  const admin = createAdminClient();
+  await admin.from('coordinators').update({ approved: true }).eq('id', id);
+}
+
+export async function rejectCoordinator(id: string): Promise<void> {
+  const admin = createAdminClient();
+  await admin.from('coordinators').delete().eq('id', id);
 }
