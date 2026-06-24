@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     }
 
     const userId  = authData.user.id;
-    const coordId = Math.random().toString(36).slice(2, 8);
+    const coordId = crypto.randomUUID().replace(/-/g, '').slice(0, 8);
 
     // 2. Insert the coordinator row linked to the auth user
     const { error: dbError } = await admin

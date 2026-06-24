@@ -21,7 +21,7 @@ export async function GET() {
         .order('date', { ascending: true }),
       admin
         .from('signups')
-        .select('*')
+        .select('id,event_id,member_name,item_type,status,signed_up_at,delivered_at,confirmed_at,nutritional_slots')
         .order('signed_up_at', { ascending: true }),
     ]);
 

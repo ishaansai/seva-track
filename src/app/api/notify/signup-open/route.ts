@@ -1,22 +1,42 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase';
 import { sendWhatsApp } from '@/lib/twilio';
+import { cookies } from 'next/headers';
+import { createClient } from '@supabase/supabase-js';
 
 // POST body: { coordId: string, signupUrl: string, dates: string[] }
 // Called by the admin dashboard immediately after creating new events.
 export async function POST(request: Request) {
   try {
-    const { coordId, signupUrl, dates } = await request.json() as {
-      coordId: string;
-      signupUrl: string;
-      dates: string[];
-    };
+    // Verify caller is the authenticated coordinator for the given coordId
+    const cookieStore = await cookies();
+    const cookieHeader = cookieStore.getAll().map(c => `${c.name}=${c.value}`).join('; ');
+    const anonClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false }, global: { headers: { cookie: cookieHeader } } },
+    );
+    const { data: { user } } = await anonClient.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+    const { coordId, signupUrl, dates } = await request.json() as {
+      coordId: string; signupUrl: string; dates: string[];
+    };
     if (!coordId || !signupUrl || !dates?.length) {
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
     }
 
     const admin = createAdminClient();
+
+    // Confirm the logged-in user owns the coordId they're blasting for
+    const { data: coord } = await admin
+      .from('coordinators')
+      .select('id')
+      .eq('id', coordId)
+      .eq('user_id', user.id)
+      .single();
+    if (!coord) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
     const { data: members } = await admin
       .from('members')
       .select('name, phone')

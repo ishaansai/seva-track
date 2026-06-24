@@ -268,7 +268,7 @@ export default function AdminDashboard() {
       getMemberContributions(cid),
       getMembers(cid),
       isApprover
-        ? fetch(`/api/admin/pending?coordId=${cid}`).then(r => r.json()).catch(() => [])
+        ? fetch('/api/admin/pending').then(r => r.json()).catch(() => [])
         : Promise.resolve([]),
     ]);
     if (!profile) { router.push('/admin'); return; }
@@ -1561,7 +1561,7 @@ Thank you for your seva! 🙏`}
                   <div className="flex gap-2 pt-2">
                     <button
                       onClick={async () => {
-                        await fetch('/api/admin/pending', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ coordId, targetId: p.id, action: 'approve' }) });
+                        await fetch('/api/admin/pending', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ targetId: p.id, action: 'approve' }) });
                         setPendingCoords(prev => prev.filter(c => c.id !== p.id));
                       }}
                       className="flex-1 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold py-2 rounded-xl transition-colors">
@@ -1570,7 +1570,7 @@ Thank you for your seva! 🙏`}
                     <button
                       onClick={async () => {
                         if (!confirm(`Reject ${p.name}'s account? This will delete it permanently.`)) return;
-                        await fetch('/api/admin/pending', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ coordId, targetId: p.id, action: 'reject' }) });
+                        await fetch('/api/admin/pending', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ targetId: p.id, action: 'reject' }) });
                         setPendingCoords(prev => prev.filter(c => c.id !== p.id));
                       }}
                       className="flex-1 bg-red-100 hover:bg-red-200 text-red-600 text-sm font-semibold py-2 rounded-xl transition-colors">

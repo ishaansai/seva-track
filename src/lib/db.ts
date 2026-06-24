@@ -2,7 +2,7 @@
  * db.ts — All Supabase database operations for Seva Track.
  * Every function is async and returns typed data.
  */
-import { supabase, createAdminClient } from './supabase';
+import { supabase } from './supabase';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -561,24 +561,3 @@ export async function removeMember(id: string): Promise<void> {
   await supabase.from('members').delete().eq('id', id);
 }
 
-// ─── Coordinator approval (admin only) ───────────────────────────────────────
-
-export async function getPendingCoordinators(): Promise<CoordinatorProfile[]> {
-  const admin = createAdminClient();
-  const { data } = await admin
-    .from('coordinators')
-    .select('id,name,email,phone,address,signup_open_day,signup_open_override,signup_close_override,notify_on_signup,approved')
-    .eq('approved', false)
-    .order('created_at', { ascending: true });
-  return (data ?? []) as CoordinatorProfile[];
-}
-
-export async function approveCoordinator(id: string): Promise<void> {
-  const admin = createAdminClient();
-  await admin.from('coordinators').update({ approved: true }).eq('id', id);
-}
-
-export async function rejectCoordinator(id: string): Promise<void> {
-  const admin = createAdminClient();
-  await admin.from('coordinators').delete().eq('id', id);
-}
