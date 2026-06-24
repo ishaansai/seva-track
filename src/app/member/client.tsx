@@ -52,6 +52,7 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
 
   // Pick the contact coordinator: prefer whoever has the next upcoming event
   const today = new Date().toISOString().slice(0, 10);
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
   const nextEvent = filteredEvents.find(e => e.date >= today);
   const contactCoord = nextEvent
     ? (allCoordsMap.get(nextEvent.coord_id) ?? realCoords[0] ?? null)
@@ -412,7 +413,7 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
                             </div>
                           ) : isFull ? (
                             <div className="text-center py-2 text-base text-red-400 font-medium">All slots filled</div>
-                          ) : event.date < today ? (
+                          ) : event.date <= tomorrow ? (
                             (() => {
                               const evSignups = signups.filter(s => s.event_id === event.id);
                               if (evSignups.length === 0) return <div className="text-center py-2 text-sm text-gray-400">Event passed</div>;
