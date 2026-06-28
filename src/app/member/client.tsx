@@ -131,13 +131,9 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
     const cleaned = deliverPhone.replace(/\D/g, '');
     if (!cleaned) return;
     setFindLoading(true);
-    const res = await fetch('/api/public/lookup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone: cleaned }),
-    });
+    const res = await fetch('/api/public');
     const data = await res.json() as { signups: Signup[] };
-    const mine = data.signups ?? [];
+    const mine = (data.signups ?? []).filter(s => s.member_phone?.replace(/\D/g, '') === cleaned);
     setMySignups(mine.filter(s => s.status === 'pending'));
     setMyPastSignups(mine.filter(s => s.status === 'delivered'));
     setFindLoading(false);
