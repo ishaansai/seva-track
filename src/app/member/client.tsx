@@ -7,6 +7,7 @@ import {
   getSignups, addSignup, removeSignup, getSlotsUsed,
   SevaEvent, Signup, ItemType, itemTypeLabel, CoordinatorProfile,
 } from '@/lib/db';
+import { supabase } from '@/lib/supabase';
 import { googleCalendarUrl, formatTime } from '@/lib/ics';
 
 function formatDate(dateStr: string) {
@@ -131,8 +132,11 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
     const cleaned = deliverPhone.replace(/\D/g, '');
     if (!cleaned) return;
     setFindLoading(true);
-    // Use already-loaded signups — all signups are pre-fetched by the server component
-    const mine = initialSignups.filter(s => s.member_phone?.replace(/\D/g, '') === cleaned);
+    const { data } = await supabase
+      .from('signups')
+      .select('*')
+      .or(`member_phone.eq.${cleaned},member_phone.eq.1${cleaned}`);
+    const mine = data ?? [];
     setMySignups(mine.filter(s => s.status === 'pending'));
     setMyPastSignups(mine.filter(s => s.status === 'delivered'));
     setFindLoading(false);
