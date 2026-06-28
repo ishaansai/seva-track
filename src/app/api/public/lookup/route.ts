@@ -9,11 +9,16 @@ export async function POST(request: Request) {
     const cleaned = (phone ?? '').replace(/\D/g, '');
     if (cleaned.length < 7) return NextResponse.json({ signups: [] });
 
+    // Try both 10-digit and 11-digit (with leading 1) to handle any storage variation
+    const variants = new Set([cleaned]);
+    if (cleaned.length === 10) variants.add('1' + cleaned);
+    if (cleaned.length === 11 && cleaned.startsWith('1')) variants.add(cleaned.slice(1));
+
     const admin = createAdminClient();
     const { data } = await admin
       .from('signups')
       .select('id,event_id,member_name,member_phone,item_type,status,signed_up_at,delivered_at,confirmed_at,nutritional_slots')
-      .eq('member_phone', cleaned);
+      .in('member_phone', [...variants]);
 
     return NextResponse.json({ signups: data ?? [] });
   } catch {
