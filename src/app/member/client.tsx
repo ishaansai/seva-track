@@ -127,8 +127,6 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
     }
   }
 
-  const [debugInfo, setDebugInfo] = useState('');
-
   async function handleFindDeliveries() {
     const cleaned = deliverPhone.replace(/\D/g, '');
     if (!cleaned) return;
@@ -137,7 +135,6 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
     const data = await res.json() as { signups: Signup[] };
     const allSignups = data.signups ?? [];
     const mine = allSignups.filter(s => s.member_phone?.replace(/\D/g, '') === cleaned);
-    setDebugInfo(`API returned ${allSignups.length} total signups. First phone: "${allSignups[0]?.member_phone ?? 'none'}". You searched: "${cleaned}". Matched: ${mine.length}`);
     setMySignups(mine.filter(s => s.status === 'pending'));
     setMyPastSignups(mine.filter(s => s.status === 'delivered'));
     setFindLoading(false);
@@ -486,9 +483,7 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
               </div>
             </div>
 
-            {debugInfo && <p className="text-xs text-gray-400 px-2 pb-2 break-all">{debugInfo}</p>}
-
-            {mySignups !== null && mySignups.length === 0 && myPastSignups.length === 0 && (
+{mySignups !== null && mySignups.length === 0 && myPastSignups.length === 0 && (
               <div className="text-center py-10 text-gray-400">
                 <div className="text-4xl mb-2">🔍</div>
                 <p className="font-medium text-lg">No deliveries found</p>
