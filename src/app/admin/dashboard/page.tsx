@@ -372,7 +372,15 @@ export default function AdminDashboard() {
   async function handleDeleteEvent(id: string) {
     if (!confirm('Delete this date and all its signups?')) return;
     try {
-      await deleteEvent(id);
+      const res = await fetch('/api/admin/delete-event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId: id }),
+      });
+      if (!res.ok) {
+        const { error } = await res.json() as { error?: string };
+        throw new Error(error ?? 'Delete failed');
+      }
       await refresh();
       setSelectedEvent(null);
     } catch (e) {
