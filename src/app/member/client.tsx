@@ -16,6 +16,13 @@ function formatDate(dateStr: string) {
 
 type SignupResult = { signup: Signup; event: SevaEvent };
 
+type CancelOtp = {
+  signup: Signup;
+  event: SevaEvent | undefined;
+  step: 'sending' | 'waiting' | 'verifying';
+  code: string;
+};
+
 interface Props {
   initialCoordinators: CoordinatorProfile[];
   initialEvents: SevaEvent[];
@@ -27,17 +34,14 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
   const coordParam  = searchParams.get('coord');
   const monthFilter = searchParams.get('month');
 
-  // Build map from initial server-loaded data
   const allCoordsMap = new Map(initialCoordinators.map(c => [c.id, c]));
   const realCoords = initialCoordinators.filter(c => c.id !== 'seva2024');
 
-  // If ?coord= is specified, show only that coordinator's events — but fall back to all if they have none
   const coordFilteredEvents = coordParam
     ? initialEvents.filter(e => e.coord_id === coordParam)
     : initialEvents;
   const filteredEvents = coordFilteredEvents.length > 0 ? coordFilteredEvents : initialEvents;
 
-  // Show all coordinators' data unless we successfully filtered to one
   const coordsById: Map<string, CoordinatorProfile> = (coordParam && coordFilteredEvents.length > 0)
     ? (allCoordsMap.has(coordParam) ? new Map([[coordParam, allCoordsMap.get(coordParam)!]]) : allCoordsMap)
     : allCoordsMap;
@@ -46,11 +50,9 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
     ? initialSignups.filter(s => s.coord_id === coordParam)
     : initialSignups;
 
-  // State for interactive parts — start with server-loaded data, no loading needed
   const [events] = useState<SevaEvent[]>(filteredEvents);
   const [signups, setSignups] = useState<Signup[]>(filteredSignups);
 
-  // Pick the contact coordinator: prefer whoever has the next upcoming event
   const today = new Date().toISOString().slice(0, 10);
   const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
   const nextEvent = filteredEvents.find(e => e.date >= today);
@@ -72,6 +74,9 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
   const [mySignups, setMySignups] = useState<Signup[] | null>(null);
   const [myPastSignups, setMyPastSignups] = useState<Signup[]>([]);
   const [findLoading, setFindLoading] = useState(false);
+
+  // Cancel OTP state — one at a time
+  const [cancelOtp, setCancelOtp] = useState<CancelOtp | null>(null);
 
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - 2);
@@ -112,9 +117,7 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
         member_phone: phone.replace(/\D/g, ''),
         item_type: itemType,
       });
-      // Refresh signups for this coordinator
       const sups = await getSignups(event.coord_id);
-      // Merge with signups from other coordinators
       setSignups(prev => [...prev.filter(s => s.coord_id !== event.coord_id), ...sups]);
       setJustSignedUp({ signup, event });
       setMySignedUpEventIds(prev => new Set([...prev, event.id]));
@@ -140,19 +143,64 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
     setFindLoading(false);
   }
 
-  async function handleCancelSignup(signup: Signup, event: SevaEvent | undefined) {
-    const res = await fetch('/api/member/cancel', {
+  // Step 1: user clicks cancel → send OTP to their phone
+  async function initiateCancelSignup(signup: Signup, event: SevaEvent | undefined) {
+    setCancelOtp({ signup, event, step: 'sending', code: '' });
+    try {
+      const res = await fetch('/api/otp/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: signup.member_phone }),
+      });
+      const data = await res.json() as { error?: string };
+      if (!res.ok) {
+        setCancelOtp(null);
+        alert(data.error ?? 'Could not send verification code. Please try again.');
+        return;
+      }
+      setCancelOtp(prev => prev ? { ...prev, step: 'waiting' } : null);
+    } catch {
+      setCancelOtp(null);
+      alert('Could not send verification code. Please try again.');
+    }
+  }
+
+  // Step 2: user enters code → verify → cancel
+  async function confirmCancelSignup() {
+    if (!cancelOtp) return;
+    setCancelOtp(prev => prev ? { ...prev, step: 'verifying' } : null);
+
+    // Verify OTP
+    const verifyRes = await fetch('/api/otp/verify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ signupId: signup.id }),
+      body: JSON.stringify({ phone: cancelOtp.signup.member_phone, code: cancelOtp.code }),
     });
-    if (!res.ok) {
-      const { error } = await res.json() as { error?: string };
+    if (!verifyRes.ok) {
+      const { error } = await verifyRes.json() as { error?: string };
+      setCancelOtp(prev => prev ? { ...prev, step: 'waiting' } : null);
+      alert(error ?? 'Incorrect code. Please try again.');
+      return;
+    }
+
+    // OTP verified — proceed with cancel
+    const cancelRes = await fetch('/api/member/cancel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ signupId: cancelOtp.signup.id }),
+    });
+    if (!cancelRes.ok) {
+      const { error } = await cancelRes.json() as { error?: string };
+      setCancelOtp(null);
       alert(error ?? 'Could not cancel signup. Please contact your coordinator.');
       return;
     }
+
+    const { signup, event } = cancelOtp;
+    setCancelOtp(null);
     setMySignups(prev => prev ? prev.filter(s => s.id !== signup.id) : prev);
     setMySignedUpEventIds(prev => { const s = new Set(prev); s.delete(signup.event_id); return s; });
+
     if (contactCoord?.phone) {
       const dateStr = event ? formatDate(event.date) : 'an event';
       const msg = encodeURIComponent(
@@ -179,8 +227,56 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
   });
   const isDeliveryWeek = thisWeekEvents.length > 0;
 
+  // Inline OTP panel shown when a cancel is in progress
+  function CancelOtpPanel() {
+    if (!cancelOtp) return null;
+    const { step, code, signup } = cancelOtp;
+    const isBusy = step === 'sending' || step === 'verifying';
+    return (
+      <div className="fixed inset-0 bg-black/40 z-50 flex items-end justify-center" onClick={() => !isBusy && setCancelOtp(null)}>
+        <div className="bg-white rounded-t-3xl w-full max-w-lg p-6 pb-10 shadow-2xl" onClick={e => e.stopPropagation()}>
+          <p className="font-bold text-gray-800 text-lg mb-1">Verify to cancel</p>
+          <p className="text-sm text-gray-500 mb-4">
+            {step === 'sending'
+              ? 'Sending a verification code to your phone...'
+              : `Enter the 6-digit code sent to ${signup.member_phone.replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3')}`}
+          </p>
+          {step !== 'sending' && (
+            <>
+              <input
+                type="tel"
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="000000"
+                value={code}
+                onChange={e => setCancelOtp(prev => prev ? { ...prev, code: e.target.value.replace(/\D/g, '') } : null)}
+                className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-2xl font-mono tracking-widest text-center focus:outline-none focus:border-orange-400 mb-3"
+              />
+              <button
+                onClick={confirmCancelSignup}
+                disabled={isBusy || code.length < 6}
+                className="w-full bg-red-500 hover:bg-red-600 text-white py-3.5 rounded-xl text-base font-semibold disabled:opacity-40 transition-colors mb-2"
+              >
+                {step === 'verifying' ? 'Verifying...' : 'Confirm Cancellation'}
+              </button>
+              <button
+                onClick={() => setCancelOtp(null)}
+                disabled={isBusy}
+                className="w-full py-3 text-sm text-gray-400 hover:text-gray-600"
+              >
+                Keep my signup
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-orange-50">
+      <CancelOtpPanel />
+
       <header className="bg-white border-b border-orange-100 px-4 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm">
         <Link href="/" className="text-orange-500 text-base font-medium">← Home</Link>
         <h1 className="font-bold text-gray-800 text-lg">Seva Track</h1>
@@ -293,7 +389,6 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
                   </div>
                 )}
 
-                {/* Signup open banner */}
                 {visibleEvents.length > 0 && (
                   <div className="mt-4 bg-green-50 border border-green-200 rounded-2xl px-4 py-3 flex items-center gap-3">
                     <span className="text-2xl">✅</span>
@@ -304,7 +399,6 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
                   </div>
                 )}
 
-                {/* Drop-off banner */}
                 <div className="mt-4 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
                   <div className="flex items-start gap-3 mb-2">
                     <span className="text-2xl flex-shrink-0">📦</span>
@@ -335,7 +429,6 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
                   </div>
                 ) : (
                   <div className="space-y-3 mt-4">
-                    {/* Show coordinator name when exactly one real coordinator */}
                     {realCoords.length === 1 && contactCoord && contactCoord.id !== 'seva2024' && (
                       <div className="bg-white rounded-2xl px-4 py-3 shadow-sm border border-orange-100 flex items-center gap-3">
                         <span className="text-2xl">🙏</span>
@@ -410,9 +503,8 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
                               {mySignup && (
                                 <button
                                   onClick={() => {
-                                    if (!confirm('Cancel your signup? Your coordinator will be notified.')) return;
-                                    handleCancelSignup(mySignup, event);
                                     setMySignedUpEventIds(prev => { const s = new Set(prev); s.delete(event.id); return s; });
+                                    initiateCancelSignup(mySignup, event);
                                   }}
                                   className="w-full text-sm text-red-400 hover:text-red-600 py-2 border border-gray-100 rounded-xl hover:bg-red-50 transition-colors"
                                 >
@@ -493,7 +585,7 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
               </div>
             </div>
 
-{mySignups !== null && mySignups.length === 0 && myPastSignups.length === 0 && (
+            {mySignups !== null && mySignups.length === 0 && myPastSignups.length === 0 && (
               <div className="text-center py-10 text-gray-400">
                 <div className="text-4xl mb-2">🔍</div>
                 <p className="font-medium text-lg">No deliveries found</p>
@@ -518,10 +610,7 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
                         </Link>
                       </div>
                       <button
-                        onClick={() => {
-                          if (!confirm('Cancel your signup? Your coordinator will be notified via WhatsApp.')) return;
-                          handleCancelSignup(signup, event);
-                        }}
+                        onClick={() => initiateCancelSignup(signup, event)}
                         className="mt-3 w-full text-sm text-red-400 hover:text-red-600 py-2 border border-gray-100 rounded-xl hover:bg-red-50 transition-colors"
                       >
                         Cancel my signup
@@ -582,6 +671,11 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
             )}
           </div>
         )}
+
+        <p className="text-center text-xs text-gray-300 mt-8 pb-4">
+          By using this app you agree to our{' '}
+          <Link href="/terms" className="underline hover:text-gray-400">Terms and Privacy Policy</Link>
+        </p>
       </div>
     </div>
   );
@@ -617,53 +711,145 @@ function SignupForm({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const [otpStep, setOtpStep] = useState<'idle' | 'sending' | 'waiting' | 'verifying'>('idle');
+  const [otpCode, setOtpCode] = useState('');
+  const [otpError, setOtpError] = useState('');
+
   const neitherSelected = !wantsMeals && !wantsNutritional;
   const mealsDisabled = slots.mealBagAvail === 0;
   const nutritionalDisabled = slots.nutritionalAvail === 0;
-  const canConfirm = name.trim().length > 0 && phone.replace(/\D/g, '').length >= 7 && !neitherSelected;
+  const canSendCode = name.trim().length > 0 && phone.replace(/\D/g, '').length >= 7 && !neitherSelected;
+
+  async function sendCode() {
+    setOtpStep('sending');
+    setOtpError('');
+    try {
+      const res = await fetch('/api/otp/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: phone.replace(/\D/g, '') }),
+      });
+      const data = await res.json() as { error?: string };
+      if (!res.ok) {
+        setOtpStep('idle');
+        setOtpError(data.error ?? 'Could not send code. Please try again.');
+        return;
+      }
+      setOtpStep('waiting');
+    } catch {
+      setOtpStep('idle');
+      setOtpError('Could not send code. Please check your connection.');
+    }
+  }
+
+  async function verifyAndSignup() {
+    setOtpStep('verifying');
+    setOtpError('');
+    try {
+      const res = await fetch('/api/otp/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: phone.replace(/\D/g, ''), code: otpCode }),
+      });
+      const data = await res.json() as { error?: string };
+      if (!res.ok) {
+        setOtpStep('waiting');
+        setOtpError(data.error ?? 'Incorrect code. Please try again.');
+        return;
+      }
+      onConfirm();
+    } catch {
+      setOtpStep('waiting');
+      setOtpError('Verification failed. Please try again.');
+    }
+  }
 
   return (
     <div className="space-y-3 mt-1">
       <input type="text" placeholder="Your full name *" value={name} onChange={e => setName(e.target.value)}
-        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400" />
-      <input type="tel" inputMode="numeric" placeholder="Phone number * (for lookup)" value={phone} onChange={e => setPhone(e.target.value)}
-        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400" />
-      <div className="space-y-2">
-        <p className="text-sm text-gray-500 font-medium">What will you bring? (select one or both)</p>
-        <label className={`flex items-center gap-3 p-3.5 rounded-xl border-2 transition-colors cursor-pointer ${
-          mealsDisabled ? 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'
-            : wantsMeals ? 'border-orange-400 bg-orange-50' : 'border-gray-200 bg-gray-50'
-        }`}>
-          <input type="checkbox" checked={wantsMeals} disabled={mealsDisabled} onChange={e => !mealsDisabled && setWantsMeals(e.target.checked)} className="w-5 h-5 accent-orange-500" />
-          <span className="text-2xl">🛍️</span>
-          <div>
-            <p className="text-base font-semibold text-gray-700">20 Meal Bags</p>
-            <p className={`text-sm ${mealsDisabled ? 'text-red-400' : 'text-gray-400'}`}>
-              {mealsDisabled ? 'No slots left' : `${slots.mealBagAvail} spot${slots.mealBagAvail !== 1 ? 's' : ''} left`}
-            </p>
+        disabled={otpStep !== 'idle'}
+        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400 disabled:opacity-60" />
+      <input type="tel" inputMode="numeric" placeholder="Phone number * (a code will be sent here)" value={phone} onChange={e => setPhone(e.target.value)}
+        disabled={otpStep !== 'idle'}
+        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400 disabled:opacity-60" />
+
+      {otpStep === 'idle' && (
+        <>
+          <div className="space-y-2">
+            <p className="text-sm text-gray-500 font-medium">What will you bring? (select one or both)</p>
+            <label className={`flex items-center gap-3 p-3.5 rounded-xl border-2 transition-colors cursor-pointer ${
+              mealsDisabled ? 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'
+                : wantsMeals ? 'border-orange-400 bg-orange-50' : 'border-gray-200 bg-gray-50'
+            }`}>
+              <input type="checkbox" checked={wantsMeals} disabled={mealsDisabled} onChange={e => !mealsDisabled && setWantsMeals(e.target.checked)} className="w-5 h-5 accent-orange-500" />
+              <span className="text-2xl">🛍️</span>
+              <div>
+                <p className="text-base font-semibold text-gray-700">20 Meal Bags</p>
+                <p className={`text-sm ${mealsDisabled ? 'text-red-400' : 'text-gray-400'}`}>
+                  {mealsDisabled ? 'No slots left' : `${slots.mealBagAvail} spot${slots.mealBagAvail !== 1 ? 's' : ''} left`}
+                </p>
+              </div>
+            </label>
+            <label className={`flex items-center gap-3 p-3.5 rounded-xl border-2 transition-colors cursor-pointer ${
+              nutritionalDisabled ? 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'
+                : wantsNutritional ? 'border-orange-400 bg-orange-50' : 'border-gray-200 bg-gray-50'
+            }`}>
+              <input type="checkbox" checked={wantsNutritional} disabled={nutritionalDisabled} onChange={e => !nutritionalDisabled && setWantsNutritional(e.target.checked)} className="w-5 h-5 accent-orange-500" />
+              <span className="text-2xl">🥗</span>
+              <div>
+                <p className="text-base font-semibold text-gray-700">Nutritional Items</p>
+                <p className={`text-sm ${nutritionalDisabled ? 'text-red-400' : 'text-gray-400'}`}>
+                  {nutritionalDisabled ? 'No slots left' : `${slots.nutritionalAvail} spot${slots.nutritionalAvail !== 1 ? 's' : ''} left`}
+                </p>
+              </div>
+            </label>
+            {neitherSelected && <p className="text-sm text-red-500 px-1">Please select at least one option</p>}
           </div>
-        </label>
-        <label className={`flex items-center gap-3 p-3.5 rounded-xl border-2 transition-colors cursor-pointer ${
-          nutritionalDisabled ? 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'
-            : wantsNutritional ? 'border-orange-400 bg-orange-50' : 'border-gray-200 bg-gray-50'
-        }`}>
-          <input type="checkbox" checked={wantsNutritional} disabled={nutritionalDisabled} onChange={e => !nutritionalDisabled && setWantsNutritional(e.target.checked)} className="w-5 h-5 accent-orange-500" />
-          <span className="text-2xl">🥗</span>
-          <div>
-            <p className="text-base font-semibold text-gray-700">Nutritional Items</p>
-            <p className={`text-sm ${nutritionalDisabled ? 'text-red-400' : 'text-gray-400'}`}>
-              {nutritionalDisabled ? 'No slots left' : `${slots.nutritionalAvail} spot${slots.nutritionalAvail !== 1 ? 's' : ''} left`}
-            </p>
+          {otpError && <p className="text-sm text-red-500 px-1">{otpError}</p>}
+          <div className="flex gap-2">
+            <button onClick={onCancel} className="flex-1 py-3 rounded-xl border border-gray-200 text-base text-gray-500">Cancel</button>
+            <button onClick={sendCode} disabled={!canSendCode} className="flex-1 py-3 rounded-xl bg-orange-500 text-white text-base font-semibold disabled:opacity-40 hover:bg-orange-600 transition-colors">
+              Send Code
+            </button>
           </div>
-        </label>
-        {neitherSelected && <p className="text-sm text-red-500 px-1">Please select at least one option</p>}
-      </div>
-      <div className="flex gap-2">
-        <button onClick={onCancel} className="flex-1 py-3 rounded-xl border border-gray-200 text-base text-gray-500">Cancel</button>
-        <button onClick={onConfirm} disabled={!canConfirm || loading} className="flex-1 py-3 rounded-xl bg-orange-500 text-white text-base font-semibold disabled:opacity-40 hover:bg-orange-600 transition-colors">
-          {loading ? 'Signing up…' : 'Confirm'}
-        </button>
-      </div>
+        </>
+      )}
+
+      {otpStep === 'sending' && (
+        <div className="text-center py-4 text-gray-500 text-sm">Sending verification code...</div>
+      )}
+
+      {(otpStep === 'waiting' || otpStep === 'verifying') && (
+        <>
+          <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+            <p className="text-sm font-semibold text-blue-800 mb-0.5">Code sent!</p>
+            <p className="text-sm text-blue-600">Check your texts and enter the 6-digit code below</p>
+          </div>
+          <input
+            type="tel"
+            inputMode="numeric"
+            maxLength={6}
+            placeholder="000000"
+            value={otpCode}
+            onChange={e => setOtpCode(e.target.value.replace(/\D/g, ''))}
+            className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-2xl font-mono tracking-widest text-center focus:outline-none focus:border-orange-400"
+          />
+          {otpError && <p className="text-sm text-red-500 px-1">{otpError}</p>}
+          <div className="flex gap-2">
+            <button onClick={() => { setOtpStep('idle'); setOtpCode(''); setOtpError(''); }} className="flex-1 py-3 rounded-xl border border-gray-200 text-base text-gray-500">Back</button>
+            <button
+              onClick={verifyAndSignup}
+              disabled={otpCode.length < 6 || loading || otpStep === 'verifying'}
+              className="flex-1 py-3 rounded-xl bg-orange-500 text-white text-base font-semibold disabled:opacity-40 hover:bg-orange-600 transition-colors"
+            >
+              {otpStep === 'verifying' || loading ? 'Confirming...' : 'Confirm Signup'}
+            </button>
+          </div>
+          <button onClick={sendCode} className="w-full text-sm text-gray-400 hover:text-gray-600 py-1">
+            Resend code
+          </button>
+        </>
+      )}
     </div>
   );
 }

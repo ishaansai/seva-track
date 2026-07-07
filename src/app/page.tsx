@@ -42,8 +42,11 @@ export default async function Home() {
         </div>
       </div>
 
-      <footer className="text-center text-xs text-gray-400 pb-8">
-        Built for Seva Commons
+      <footer className="text-center text-xs text-gray-400 pb-8 space-y-1">
+        <p>Built for Seva Commons</p>
+        <p>
+          <Link href="/terms" className="underline hover:text-gray-500">Terms and Privacy Policy</Link>
+        </p>
       </footer>
     </main>
   );
