@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
-  getSignups, addSignup, removeSignup, getSlotsUsed,
+  getSignups, addSignup, getSlotsUsed,
   SevaEvent, Signup, ItemType, itemTypeLabel, CoordinatorProfile,
 } from '@/lib/db';
 import { googleCalendarUrl, formatTime } from '@/lib/ics';
@@ -141,8 +141,18 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
   }
 
   async function handleCancelSignup(signup: Signup, event: SevaEvent | undefined) {
-    await removeSignup(signup.id);
+    const res = await fetch('/api/member/cancel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ signupId: signup.id }),
+    });
+    if (!res.ok) {
+      const { error } = await res.json() as { error?: string };
+      alert(error ?? 'Could not cancel signup. Please contact your coordinator.');
+      return;
+    }
     setMySignups(prev => prev ? prev.filter(s => s.id !== signup.id) : prev);
+    setMySignedUpEventIds(prev => { const s = new Set(prev); s.delete(signup.event_id); return s; });
     if (contactCoord?.phone) {
       const dateStr = event ? formatDate(event.date) : 'an event';
       const msg = encodeURIComponent(
