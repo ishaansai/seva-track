@@ -85,17 +85,17 @@ function VolunteerGuide() {
         <Step n={2} icon="📅" title="Find an upcoming date"
           body="Upcoming delivery dates are listed on the Sign Up tab. Each card shows the drop-off time, location, and how many spots are left." />
         <Step n={3} icon="✍️" title="Sign up"
-          body="Tap 'Sign Up' on the date you want. Enter your full name and phone number, choose whether you're bringing Meal Bags, Nutritional Items, or both, then tap Confirm." />
+          body="Tap Sign Up on the date you want. Enter your full name and phone number, choose whether you are bringing Meal Bags, Nutritional Items, or both, then tap Confirm." />
         <Step n={4} icon="📅" title="Add to your calendar"
-          body="After signing up, tap 'Add to Google Calendar' to set a reminder. This saves the drop-off time and address so you don't forget." />
+          body="After signing up, tap Add to Google Calendar to set a reminder. This saves the drop-off time and address so you do not forget." />
         <Step n={5} icon="🛒" title="Shop for ingredients"
-          body="Use the shopping list below. Most items are from Costco. Shop 1–2 days before the drop-off date." />
+          body="Use the shopping list below. Most items are from Costco. Shop 1-2 days before the drop-off date." />
         <Step n={6} icon="🥪" title="Make the bags"
           body="Make 20 PB&J sandwiches, pack 1 sandwich + 1 fruit + 1 snack + 1 granola bar + 1 juice drink into each brown bag. Wear gloves and a mask while packing. Label each bag with a Seva or Chirag SJC sticker." />
         <Step n={7} icon="📦" title="Drop off"
           body="Bring all 20 bags to the address shown on your event card (usually your coordinator's home) within the drop-off window shown — typically 6:00 PM–9:00 PM the evening before delivery day." />
         <Step n={8} icon="✅" title="Mark as delivered"
-          body="Open the app → Mark Delivered tab → enter your phone number → tap Find → tap 'Deliver →' next to your signup → take a photo and confirm. This tells your coordinator you're done." />
+          body="Open the app, go to the Mark Delivered tab, enter your phone number, tap Find, then tap Deliver next to your signup. Take a photo and confirm. This tells your coordinator you are done." />
       </Section>
 
       <Section title="Shopping List (for 20 bags)" color="bg-blue-100 text-blue-800">
@@ -127,12 +127,12 @@ function VolunteerGuide() {
 
       <Section title="Cancelling a Signup" color="bg-red-100 text-red-800">
         <p className="text-sm text-gray-600 leading-relaxed">
-          Life happens. If you can't make it, please cancel as early as possible so another volunteer can take your spot.
+          Life happens. If you cannot make it, please cancel as early as possible so another volunteer can take your spot.
         </p>
         <div className="bg-red-50 rounded-xl p-3 space-y-2">
           <Tip icon="1️⃣" text="Go to the Mark Delivered tab on the member page." />
           <Tip icon="2️⃣" text="Enter the phone number you signed up with and tap Find." />
-          <Tip icon="3️⃣" text="Tap 'Cancel my signup' under your pending delivery." />
+          <Tip icon="3️⃣" text="Tap Cancel my signup under your pending delivery." />
           <Tip icon="4️⃣" text="Your coordinator will automatically be notified via WhatsApp." />
         </div>
         <p className="text-xs text-orange-600 font-medium">Please cancel at least 2 days before drop-off if possible.</p>
@@ -142,18 +142,36 @@ function VolunteerGuide() {
         <Tip icon="🧤" text="Always wear disposable gloves and a mask when making and packing sandwiches." />
         <Tip icon="🏷" text="Label every bag before drop-off. Use the Seva or Chirag SJC stickers your coordinator provides." />
         <Tip icon="🕕" text="Drop off on time — the coordinator needs to pack everything for delivery the next morning." />
-        <Tip icon="📸" text="Take a photo when you drop off. You'll need it to mark your delivery as done in the app." />
+        <Tip icon="📸" text="Take a photo when you drop off. You will need it to mark your delivery as done in the app." />
         <Tip icon="🔄" text="You can sign up for as many months as you like. The more the merrier!" />
       </Section>
 
       <Section title="Frequently Asked Questions" color="bg-gray-100 text-gray-700">
         <div className="space-y-3">
-          <QA q="What if I don't see any upcoming dates?" a="Signups open at the beginning of each month for that month's dates. If the page says 'No upcoming dates yet', check back after the 1st of the month, or contact your coordinator." />
-          <QA q="Can I sign up for Meal Bags AND Nutritional Items?" a="Yes! When signing up, check both boxes. You'll be listed as bringing both." />
-          <QA q="What if the slot is full?" a="It will show 'Full' and the sign-up button will be disabled. Message your coordinator on WhatsApp — they can add you manually if capacity allows." />
-          <QA q="I forgot to mark as delivered. What do I do?" a="You can still mark it late — just go to the Mark Delivered tab, look up your phone number, and submit. If it's been more than a day, message your coordinator and they can mark it for you." />
-          <QA q="I entered my phone wrong when I signed up. How do I find my signup?" a="Enter whatever number you typed when you signed up. If you can't find it, contact your coordinator — they can look you up by name and fix it." />
-          <QA q="Is the app only for iPhone?" a="No — it works on any smartphone or computer browser. There's nothing to download." />
+          <QA
+            q="What if I don't see any upcoming dates?"
+            a="Signups open at the beginning of each month for that month's dates. If the page says No upcoming dates yet, check back after the 1st of the month, or contact your coordinator."
+          />
+          <QA
+            q="Can I sign up for Meal Bags AND Nutritional Items?"
+            a="Yes! When signing up, check both boxes. You'll be listed as bringing both."
+          />
+          <QA
+            q="What if the slot is full?"
+            a="It will show Full and the sign-up button will be disabled. Message your coordinator on WhatsApp — they can add you manually if capacity allows."
+          />
+          <QA
+            q="I forgot to mark as delivered. What do I do?"
+            a="You can still mark it late — just go to the Mark Delivered tab, look up your phone number, and submit. If it's been more than a day, message your coordinator and they can mark it for you."
+          />
+          <QA
+            q="I entered my phone wrong when I signed up. How do I find my signup?"
+            a="Enter whatever number you typed when you signed up. If you can't find it, contact your coordinator — they can look you up by name and fix it."
+          />
+          <QA
+            q="Is the app only for iPhone?"
+            a="No — it works on any smartphone or computer browser. There's nothing to download."
+          />
         </div>
       </Section>
 
@@ -180,9 +198,9 @@ function CoordinatorGuide() {
 
       <Section title="Logging In" color="bg-orange-100 text-orange-800">
         <Step n={1} icon="🌐" title="Go to the Admin Portal"
-          body="Open seva-track.vercel.app and tap 'Admin Portal →' at the bottom of the home screen." />
+          body="Open seva-track.vercel.app and tap Admin Portal at the bottom of the home screen." />
         <Step n={2} icon="📧" title="Enter your credentials"
-          body="Sign in with your email and password. These were set when your account was created. If you forgot your password, use the 'Forgot password?' link." />
+          body="Sign in with your email and password. These were set when your account was created. If you forgot your password, use the Forgot password link on the login page." />
         <Step n={3} icon="✅" title="You're in"
           body="You'll land on your dashboard showing upcoming dates, signup counts, and delivery stats." />
         <div className="bg-amber-50 rounded-xl p-3">
@@ -210,19 +228,19 @@ function CoordinatorGuide() {
       </Section>
 
       <Section title="Creating Delivery Dates" color="bg-green-100 text-green-800">
-        <Step n={1} icon="➕" title="Go to the '+ Add' tab"
-          body="Tap the '+ Add' tab in the dashboard navigation." />
+        <Step n={1} icon="➕" title="Go to the + Add tab"
+          body="Tap the + Add tab in the dashboard navigation." />
         <Step n={2} icon="📅" title="Enter dates"
-          body="Up to 4 dates at a time. You can also add a note for volunteers (e.g. 'Please bring extra bags')." />
+          body="Up to 4 dates at a time. You can also add a note for volunteers (e.g. Please bring extra bags)." />
         <Step n={3} icon="🔢" title="Set slots"
           body="Choose how many Meal Bag slots and Nutritional Item slots to offer. Volunteers can only sign up if a slot is available." />
         <Step n={4} icon="⏰" title="Set drop-off window"
           body="Enter the start and end time for drop-off (e.g. 6:00 PM – 9:00 PM). This shows up on each volunteer's signup confirmation." />
         <Step n={5} icon="📍" title="Set drop-off location"
-          body="Defaults to your address from Settings. You can override it per date (see 'Different Address for Specific Weeks' below)." />
+          body="Defaults to your address from Settings. You can override it per date (see Different Address for Specific Weeks below)." />
         <Step n={6} icon="🔄" title="Repeat monthly (optional)"
-          body="Check 'Repeat monthly' to auto-generate dates for the same weekday pattern (e.g. 3rd Saturday) across multiple months." />
-        <Step n={7} icon="✅" title="Tap 'Create Dates'"
+          body="Check Repeat monthly to auto-generate dates for the same weekday pattern (e.g. 3rd Saturday) across multiple months." />
+        <Step n={7} icon="✅" title="Tap Create Dates"
           body="Dates are created and volunteers on your contact list are automatically notified via WhatsApp that signups are open." />
       </Section>
 
@@ -231,8 +249,8 @@ function CoordinatorGuide() {
           Every coordinator has a unique signup link that goes directly to your dates. Share it with your volunteers so they can sign up.
         </p>
         <div className="bg-purple-50 rounded-xl p-3 space-y-2">
-          <Tip icon="📋" text="Tap 'Copy' next to the link to copy it to your clipboard, then paste it anywhere." />
-          <Tip icon="💬" text="Tap 'Share via WhatsApp' to open WhatsApp with the link pre-filled in a message. Just pick your group or individual contacts and send." />
+          <Tip icon="📋" text="Tap Copy next to the link to copy it to your clipboard, then paste it anywhere." />
+          <Tip icon="💬" text="Tap Share via WhatsApp to open WhatsApp with the link pre-filled in a message. Just pick your group or individual contacts and send." />
         </div>
         <p className="text-xs text-gray-400">Your link looks like: seva-track.vercel.app/member?coord=YOURCODE</p>
       </Section>
@@ -246,32 +264,32 @@ function CoordinatorGuide() {
           </div>
           <div className="bg-green-50 rounded-xl p-3">
             <p className="text-sm font-semibold text-green-800 mb-1">Adding a volunteer manually</p>
-            <p className="text-sm text-gray-600">Tap '+ Add Member', enter their name, phone number (optional), and item type, then tap 'Add to List'. They'll appear as 'Added by admin'.</p>
+            <p className="text-sm text-gray-600">Tap + Add Member, enter their name, phone number (optional), and item type, then tap Add to List. They will appear as Added by admin.</p>
           </div>
           <div className="bg-blue-50 rounded-xl p-3">
             <p className="text-sm font-semibold text-blue-800 mb-1">Marking as delivered</p>
-            <p className="text-sm text-gray-600">Tap '✓ Mark Delivered' on any pending signup to mark it done on their behalf. Use this if a volunteer forgot to mark it themselves.</p>
+            <p className="text-sm text-gray-600">Tap Mark Delivered on any pending signup to mark it done on their behalf. Use this if a volunteer forgot to mark it themselves.</p>
           </div>
           <div className="bg-amber-50 rounded-xl p-3">
             <p className="text-sm font-semibold text-amber-800 mb-1">Nudging pending volunteers</p>
-            <p className="text-sm text-gray-600">Tap '📞 Nudge (N)' to see call and WhatsApp buttons for every volunteer who hasn't delivered yet.</p>
+            <p className="text-sm text-gray-600">Tap the Nudge button to see call and WhatsApp buttons for every volunteer who has not delivered yet.</p>
           </div>
           <div className="bg-red-50 rounded-xl p-3">
             <p className="text-sm font-semibold text-red-800 mb-1">Removing a signup</p>
-            <p className="text-sm text-gray-600">Tap 'Remove' on any signup to delete it. This cannot be undone.</p>
+            <p className="text-sm text-gray-600">Tap Remove on any signup to delete it. This cannot be undone.</p>
           </div>
         </div>
       </Section>
 
       <Section title="Confirming Deliveries" color="bg-green-100 text-green-800">
         <p className="text-sm text-gray-600 leading-relaxed">
-          When a volunteer marks their own delivery in the app, they upload a photo. You'll see a yellow banner on the Dates tab: <strong>"📸 Confirm This Week's Deliveries"</strong>.
+          When a volunteer marks their own delivery in the app, they upload a photo. You will see a yellow banner on the Dates tab: <strong>Confirm This Week&apos;s Deliveries</strong>.
         </p>
         <Step n={1} icon="📸" title="Review the photo"
           body="Tap the volunteer's card to see the photo they uploaded as proof of delivery." />
         <Step n={2} icon="✅" title="Tap Confirm"
-          body="Tapping '✓ Confirm' marks the signup as Confirmed (shown with a green ✅). This is the final status." />
-        <p className="text-sm text-gray-500">If a volunteer didn't upload a photo, you can still manually mark them as delivered using the '✓ Mark Delivered' button.</p>
+          body="Tapping Confirm marks the signup as Confirmed (shown with a green checkmark). This is the final status." />
+        <p className="text-sm text-gray-500">If a volunteer did not upload a photo, you can still manually mark them as delivered using the Mark Delivered button.</p>
       </Section>
 
       <Section title="Different Address for Specific Weeks" color="bg-teal-100 text-teal-800">
@@ -280,11 +298,11 @@ function CoordinatorGuide() {
         </p>
         <Step n={1} icon="📅" title="Open the event"
           body="Tap the delivery date on the Dates tab." />
-        <Step n={2} icon="✏️" title="Tap 'Edit'"
-          body="Tap the 'Edit' button in the top right of the event card." />
+        <Step n={2} icon="✏️" title="Tap Edit"
+          body="Tap the Edit button in the top right of the event card." />
         <Step n={3} icon="📍" title="Change the Drop-Off Location"
           body="Clear the address field and type the new address. This only affects this specific date — your default address in Settings is unchanged." />
-        <Step n={4} icon="💾" title="Tap 'Save Changes'"
+        <Step n={4} icon="💾" title="Tap Save Changes"
           body="Volunteers will now see the new address on their signup page for this date." />
       </Section>
 
@@ -293,20 +311,20 @@ function CoordinatorGuide() {
           During delivery week (Sunday through delivery day), each event card shows a purple reminder section.
         </p>
         <div className="bg-purple-50 rounded-xl p-3 space-y-2">
-          <Tip icon="📋" text="'Copy Group Message' — a pre-written WhatsApp message with the delivery details and volunteer list. Paste it into your WhatsApp group." />
+          <Tip icon="📋" text="Copy Group Message — a pre-written WhatsApp message with the delivery details and volunteer list. Paste it into your WhatsApp group." />
           <Tip icon="💬" text="Individual WA buttons — tap any volunteer's name to open a pre-written personal reminder in WhatsApp." />
         </div>
         <p className="text-xs text-gray-400">The automated Twilio reminder system (when set up) will handle this automatically in the future.</p>
       </Section>
 
-      <Section title="Managing Your Contact List" color="bg-indigo-100 text-indigo-800">
+      <Section title="Managing Your Members List" color="bg-indigo-100 text-indigo-800">
         <p className="text-sm text-gray-600 leading-relaxed">
           The Members tab shows all volunteers who have ever signed up with you, along with their total meal bag and nutritional delivery counts.
         </p>
         <div className="space-y-2">
           <Tip icon="🔢" text="Delivery counts are calculated automatically from signup history." />
-          <Tip icon="✏️" text="You can manually adjust counts (e.g. for deliveries before the app existed) by tapping 'Adjust' next to any volunteer." />
-          <Tip icon="📋" text="'Export CSV' on the Dates tab downloads a spreadsheet of all signups, filterable by month. Useful for records or tax documentation." />
+          <Tip icon="✏️" text="You can manually adjust counts (e.g. for deliveries before the app existed) by tapping Adjust next to any volunteer." />
+          <Tip icon="📋" text="Export CSV on the Dates tab downloads a spreadsheet of all signups, filterable by month. Useful for records or tax documentation." />
           <Tip icon="🗑" text="You can remove a volunteer and all their history from the Members tab — this is permanent." />
         </div>
       </Section>
@@ -331,12 +349,30 @@ function CoordinatorGuide() {
 
       <Section title="Frequently Asked Questions" color="bg-gray-100 text-gray-700">
         <div className="space-y-3">
-          <QA q="A volunteer signed up twice. What do I do?" a="Open the event detail, find the duplicate signup, and tap 'Remove' on the extra one." />
-          <QA q="A volunteer delivered but didn't mark it in the app. How do I fix it?" a="Open the event, find their signup, and tap '✓ Mark Delivered'. You can do this at any time." />
-          <QA q="How do I add a volunteer to a date that's in the past?" a="Open the past event from the Dates tab (scroll down to 'Past'), tap '+ Add Member', and fill in their info." />
-          <QA q="Can two coordinators use the same app?" a="Yes — each coordinator has their own account and their own signup link. Volunteers signing up via your link are only visible to you." />
-          <QA q="What happens when I create dates — do volunteers get notified automatically?" a="Yes, if they're on your contact list. When you create dates, all contacts receive a WhatsApp message with your signup link. (Requires Twilio to be set up.)" />
-          <QA q="I need to cancel a delivery date entirely. What do I do?" a="Open the event, tap 'Edit', then scroll to 'Delete' at the top right. This removes the date and all signups. Notify your volunteers separately." />
+          <QA
+            q="A volunteer signed up twice. What do I do?"
+            a="Open the event detail, find the duplicate signup, and tap Remove on the extra one."
+          />
+          <QA
+            q="A volunteer delivered but didn't mark it in the app. How do I fix it?"
+            a="Open the event, find their signup, and tap Mark Delivered. You can do this at any time."
+          />
+          <QA
+            q="How do I add a volunteer to a date that's in the past?"
+            a="Open the past event from the Dates tab (scroll down to Past), tap + Add Member, and fill in their info."
+          />
+          <QA
+            q="Can two coordinators use the same app?"
+            a="Yes — each coordinator has their own account and their own signup link. Volunteers signing up via your link are only visible to you."
+          />
+          <QA
+            q="What happens when I create dates — do volunteers get notified automatically?"
+            a="Yes, if they are on your contact list. When you create dates, all contacts receive a WhatsApp message with your signup link. (Requires Twilio to be set up.)"
+          />
+          <QA
+            q="I need to cancel a delivery date entirely. What do I do?"
+            a="Open the event, tap Edit, then tap Delete at the top right. This removes the date and all signups. Notify your volunteers separately."
+          />
         </div>
       </Section>
 
