@@ -28,6 +28,12 @@ export default async function Home() {
           >
             Logistics Guide
           </Link>
+          <Link
+            href="/guide"
+            className="bg-white hover:bg-orange-50 text-orange-600 text-center py-4 px-8 rounded-2xl text-lg font-semibold border-2 border-orange-200 transition-all active:scale-95"
+          >
+            App Guide
+          </Link>
           <div className="pt-4 text-center">
             <Link href="/admin" className="text-sm text-gray-400 hover:text-gray-600 transition-colors">
               Admin Portal →
