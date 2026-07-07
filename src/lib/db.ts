@@ -276,7 +276,8 @@ export async function updateCoordinator(
   id: string,
   patch: Partial<Omit<CoordinatorProfile, 'id'>>,
 ): Promise<void> {
-  await supabase.from('coordinators').update(patch).eq('id', id);
+  const { error } = await supabase.from('coordinators').update(patch).eq('id', id);
+  if (error) throw new Error(error.message);
 }
 
 // ─── Events ───────────────────────────────────────────────────────────────────
@@ -308,7 +309,8 @@ export async function updateEvent(
   id: string,
   patch: Partial<Omit<SevaEvent, 'id' | 'coord_id'>>,
 ): Promise<void> {
-  await supabase.from('events').update(patch).eq('id', id);
+  const { error } = await supabase.from('events').update(patch).eq('id', id);
+  if (error) throw new Error(error.message);
 }
 
 export async function deleteEvent(id: string): Promise<void> {
