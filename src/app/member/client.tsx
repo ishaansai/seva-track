@@ -123,6 +123,12 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
       setMySignedUpEventIds(prev => new Set([...prev, event.id]));
       setShowForm(null);
       setName(''); setPhone(''); setWantsMeals(true); setWantsNutritional(false);
+      // Fire-and-forget — notify coordinator, don't block the UI
+      fetch('/api/member/notify-coordinator', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ coordId: event.coord_id, memberName: signup.member_name, itemType, eventDate: event.date, action: 'signup' }),
+      }).catch(() => {});
     } catch {
       alert('Could not sign up — you may already be signed up for this date.');
     } finally {

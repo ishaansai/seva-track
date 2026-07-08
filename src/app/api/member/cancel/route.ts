@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase';
+import { sendSMS } from '@/lib/sms';
 
 // POST { signupId } — cancels a pending signup on behalf of a member.
 // Uses the admin client (service role) to bypass RLS, since members have no auth session.
@@ -11,10 +12,10 @@ export async function POST(request: Request) {
 
     const admin = createAdminClient();
 
-    // Verify the signup exists and is still pending
+    // Fetch full signup details needed for coordinator notification
     const { data: signup, error: fetchError } = await admin
       .from('signups')
-      .select('id, status')
+      .select('id, status, member_name, item_type, coord_id, event_id')
       .eq('id', signupId)
       .single();
 
@@ -27,6 +28,24 @@ export async function POST(request: Request) {
 
     const { error: deleteError } = await admin.from('signups').delete().eq('id', signupId);
     if (deleteError) throw new Error(deleteError.message);
+
+    // Notify coordinator via SMS (fire-and-forget — don't fail the cancel if SMS fails)
+    try {
+      const [{ data: coord }, { data: event }] = await Promise.all([
+        admin.from('coordinators').select('phone, notify_on_signup').eq('id', signup.coord_id).single(),
+        admin.from('events').select('date').eq('id', signup.event_id).single(),
+      ]);
+      if (coord?.phone && coord.notify_on_signup && event?.date) {
+        const date = new Date(event.date + 'T00:00:00').toLocaleDateString('en-US', {
+          weekday: 'long', month: 'long', day: 'numeric',
+        });
+        const itemLabel =
+          signup.item_type === 'meals' ? '20 Meal Bags'
+          : signup.item_type === 'nutritional' ? 'Nutritional Items'
+          : 'Meal Bags + Nutritional Items';
+        await sendSMS(coord.phone, `Seva Track: ${signup.member_name} cancelled their signup for ${date} (${itemLabel}).`);
+      }
+    } catch { /* SMS failure doesn't affect the cancel */ }
 
     return NextResponse.json({ ok: true });
   } catch (e) {
