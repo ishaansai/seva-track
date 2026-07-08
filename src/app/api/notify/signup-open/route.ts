@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase';
-import { sendWhatsApp } from '@/lib/twilio';
+import { sendSMS } from '@/lib/sms';
 import { cookies } from 'next/headers';
 import { createClient } from '@supabase/supabase-js';
 
@@ -54,9 +54,9 @@ export async function POST(request: Request) {
     for (const m of members) {
       if (!m.phone) continue;
       try {
-        await sendWhatsApp(
+        await sendSMS(
           m.phone,
-          `Hi ${m.name}! 🫶 New Seva Commons delivery dates are open for sign-up:\n\n📅 ${dateList}\n\nSign up here: ${signupUrl}\n\nThank you for volunteering! 🙏`,
+          `Hi ${m.name}! New Seva Commons delivery dates are open for sign-up:\n\n${dateList}\n\nSign up here: ${signupUrl}\n\nThank you for volunteering!`,
         );
         results.push(`notified ${m.name}`);
       } catch (e) {

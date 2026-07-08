@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase';
-import { sendWhatsApp } from '@/lib/twilio';
+import { sendSMS } from '@/lib/sms';
 import { formatTime } from '@/lib/ics';
 
 function fmt(dateStr: string) {
@@ -49,9 +49,9 @@ export async function GET(request: Request) {
     for (const s of (signups ?? [])) {
       if (!s.member_phone) continue;
       try {
-        await sendWhatsApp(
+        await sendSMS(
           s.member_phone,
-          `Hi ${s.member_name}! 🛍️ Seva Commons reminder: your delivery is in 3 days — ${fmt(event.date)}. Time to pick up your ingredients!\n\nDrop-off: ${formatTime(event.drop_off_start)}–${formatTime(event.drop_off_end)} at ${event.drop_off_location}\n\nThank you! 🫶`,
+          `Hi ${s.member_name}! Seva Commons reminder: your delivery is in 3 days - ${fmt(event.date)}. Time to pick up your ingredients!\n\nDrop-off: ${formatTime(event.drop_off_start)}-${formatTime(event.drop_off_end)} at ${event.drop_off_location}\n\nThank you!`,
         );
         results.push(`3-day → ${s.member_name} (${s.member_phone})`);
       } catch (e) {
@@ -70,9 +70,9 @@ export async function GET(request: Request) {
     for (const s of (signups ?? [])) {
       if (!s.member_phone) continue;
       try {
-        await sendWhatsApp(
+        await sendSMS(
           s.member_phone,
-          `Hi ${s.member_name}! 🍱 Your Seva Commons delivery is TOMORROW — ${fmt(event.date)}.\n\nDrop-off: ${formatTime(event.drop_off_start)}–${formatTime(event.drop_off_end)}\n📍 ${event.drop_off_location}\n\nThank you for volunteering! 🙏`,
+          `Hi ${s.member_name}! Your Seva Commons delivery is TOMORROW - ${fmt(event.date)}.\n\nDrop-off: ${formatTime(event.drop_off_start)}-${formatTime(event.drop_off_end)}\nLocation: ${event.drop_off_location}\n\nThank you for volunteering!`,
         );
         results.push(`1-day → ${s.member_name} (${s.member_phone})`);
       } catch (e) {
