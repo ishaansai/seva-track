@@ -494,21 +494,39 @@ export async function setMemberAdjustment(data: {
 
 // ─── CSV export ───────────────────────────────────────────────────────────────
 
-export function downloadCsv(events: SevaEvent[], signups: Signup[], monthFilter?: string): void {
-  // monthFilter format: 'YYYY-MM' — if provided, only include signups for that month
-  if (monthFilter) {
-    const filteredEventIds = new Set(events.filter(e => e.date.startsWith(monthFilter)).map(e => e.id));
-    signups = signups.filter(s => filteredEventIds.has(s.event_id));
+// Each nutritional delivery counts as 1 kit. Change this if the quantity changes.
+const NUTRITIONAL_PER_DELIVERY = 1;
+
+export function downloadCsv(
+  events: SevaEvent[],
+  signups: Signup[],
+  contributions: MemberContribution[],
+  filter: { month?: string; year?: string } = {},
+): void {
+  const { month, year } = filter;
+
+  // Build filename that encodes exactly what filter was applied
+  const fileLabel = month ? month : year ? year : 'all-time';
+  const filename  = `seva-deliveries-${fileLabel}.csv`;
+
+  // Filter signups to the selected scope
+  const prefix = month ?? year;
+  if (prefix) {
+    const scopedIds = new Set(events.filter(e => e.date.startsWith(prefix)).map(e => e.id));
+    signups = signups.filter(s => scopedIds.has(s.event_id));
   }
+
   const rows: string[][] = [
-    ['Date', 'Member Name', 'Phone', 'Item Type', 'Meal Bags', 'Nutritional Items', 'Status',
-     'Signed Up At', 'Delivered At', 'Drop-Off Location'],
+    ['Date', 'Member Name', 'Phone', 'Item Type', 'Meal Bags (20 per delivery)',
+     `Nutritional Kits (${NUTRITIONAL_PER_DELIVERY} per delivery)`,
+     'Status', 'Signed Up At', 'Delivered At', 'Drop-Off Location'],
   ];
+
   for (const s of signups) {
-    const ev = events.find(e => e.id === s.event_id);
+    const ev   = events.find(e => e.id === s.event_id);
     const done = s.status === 'delivered' || s.status === 'confirmed';
-    const mealBags     = done && (s.item_type === 'meals'       || s.item_type === 'both') ? '20' : '0';
-    const nutritional  = done && (s.item_type === 'nutritional' || s.item_type === 'both') ? '1'  : '0';
+    const mealBags   = done && (s.item_type === 'meals'       || s.item_type === 'both') ? '20'                                : '0';
+    const nutritional = done && (s.item_type === 'nutritional' || s.item_type === 'both') ? String(NUTRITIONAL_PER_DELIVERY) : '0';
     rows.push([
       ev?.date ?? '',
       s.member_name,
@@ -522,12 +540,34 @@ export function downloadCsv(events: SevaEvent[], signups: Signup[], monthFilter?
       ev?.drop_off_location ?? '',
     ]);
   }
-  const csv  = rows.map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n');
+
+  // Append manual adjustments section so the CSV matches dashboard totals exactly
+  const adjusted = contributions.filter(
+    c => Number(c.meal_bag_adjustment) !== 0 || Number(c.nutritional_adjustment) !== 0,
+  );
+  if (adjusted.length > 0) {
+    rows.push(Array(10).fill(''));
+    rows.push(['--- Manual Adjustments (added to member totals) ---', ...Array(9).fill('')]);
+    rows.push(['Note', 'Member Name', 'Phone', '', 'Meal Bag Adjustment', 'Nutritional Adjustment', '', '', '', '']);
+    for (const c of adjusted) {
+      rows.push([
+        c.adjustment_note || 'Manual adjustment',
+        c.member_name,
+        c.member_phone,
+        '',
+        String(c.meal_bag_adjustment),
+        String(c.nutritional_adjustment),
+        '', '', '', '',
+      ]);
+    }
+  }
+
+  const csv  = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href     = url;
-  a.download = `seva-deliveries-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

@@ -167,8 +167,15 @@ export default function AdminDashboard() {
   const [contributions, setContributions] = useState<MemberContribution[]>([]);
   const [pendingCoords, setPendingCoords] = useState<CoordinatorProfile[]>([]);
 
-  // CSV export month filter
+  // CSV export filters
   const [csvMonth, setCsvMonth] = useState('');
+  const [csvYear,  setCsvYear]  = useState('');
+
+  // Stats strip year filter
+  const [statsYear, setStatsYear] = useState('');
+
+  // Members tab year filter
+  const [membersYear, setMembersYear] = useState('');
 
   // Manual adjustment edit state
   const [editingMember, setEditingMember]         = useState<string | null>(null); // member_phone
@@ -570,14 +577,56 @@ export default function AdminDashboard() {
   const today = new Date().toISOString().slice(0, 10);
   const upcomingEvents = events.filter(e => e.date >= today);
   const pastEvents = events.filter(e => e.date < today);
-  const totalSignups = signups.length;
   const isDone = (s: Signup) => s.status === 'delivered' || s.status === 'confirmed';
-  const totalDelivered = signups.filter(isDone).length;
-  const totalMealBags = contributions.reduce((sum, c) => sum + Number(c.total_meal_bags), 0);
-  const totalNutritional = contributions.reduce((sum, c) => sum + Number(c.nutritional_deliveries), 0);
+
+  // Stats filtered by selected year (or all-time)
+  const statsSignups = statsYear
+    ? signups.filter(s => events.find(e => e.id === s.event_id)?.date.startsWith(statsYear))
+    : signups;
+  const totalSignups    = statsSignups.length;
+  const totalDelivered  = statsSignups.filter(isDone).length;
+  const totalMealBags   = statsYear
+    ? statsSignups.filter(s => isDone(s) && (s.item_type === 'meals' || s.item_type === 'both')).length * 20
+    : contributions.reduce((sum, c) => sum + Number(c.total_meal_bags), 0);
+  const totalNutritional = statsYear
+    ? statsSignups.filter(s => isDone(s) && (s.item_type === 'nutritional' || s.item_type === 'both')).length
+    : contributions.reduce((sum, c) => sum + Number(c.nutritional_deliveries), 0);
 
   const eventSignups = (eventId: string) => signups.filter(s => s.event_id === eventId);
   const deliveredCount = (id: string) => signups.filter(s => s.event_id === id && isDone(s)).length;
+
+  // Member contributions filtered by year — recalculated from raw signups when year is selected,
+  // so the filter works even though the DB view aggregates all-time.
+  const displayContributions: MemberContribution[] = membersYear
+    ? (() => {
+        const yearSignups = signups.filter(
+          s => events.find(e => e.id === s.event_id)?.date.startsWith(membersYear),
+        );
+        const map = new Map<string, MemberContribution>();
+        for (const s of yearSignups) {
+          if (!map.has(s.member_phone)) {
+            map.set(s.member_phone, {
+              coord_id: s.coord_id, member_name: s.member_name, member_phone: s.member_phone,
+              total_signups: 0, total_delivered: 0,
+              meal_bag_deliveries: 0, total_meal_bags: 0, nutritional_deliveries: 0,
+              meal_bag_adjustment: 0, nutritional_adjustment: 0, adjustment_note: '',
+              first_signup: s.signed_up_at, last_signup: s.signed_up_at,
+            });
+          }
+          const c = map.get(s.member_phone)!;
+          c.total_signups++;
+          const done = isDone(s);
+          if (done) {
+            c.total_delivered++;
+            if (s.item_type === 'meals' || s.item_type === 'both') { c.meal_bag_deliveries++; c.total_meal_bags += 20; }
+            if (s.item_type === 'nutritional' || s.item_type === 'both') { c.nutritional_deliveries++; }
+          }
+          if (s.signed_up_at > c.last_signup) c.last_signup = s.signed_up_at;
+          if (s.signed_up_at < c.first_signup) c.first_signup = s.signed_up_at;
+        }
+        return Array.from(map.values()).sort((a, b) => b.total_meal_bags - a.total_meal_bags);
+      })()
+    : contributions;
 
   // This week: Sunday → Saturday containing today
   const todayDate = new Date();
@@ -605,6 +654,9 @@ export default function AdminDashboard() {
   const waMsg = encodeURIComponent(`Hey! Sign up for Seva Commons meal bag delivery dates:\n${memberUrl}`);
   const waUrl = `https://wa.me/?text=${waMsg}`;
 
+  // All years that have events (for filter dropdowns)
+  const eventYears = Array.from(new Set(events.map(e => e.date.slice(0, 4)))).sort().reverse();
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -629,20 +681,36 @@ export default function AdminDashboard() {
       </header>
 
       {/* Stats */}
-      <div className="bg-white border-b border-gray-200 px-4 py-3 flex gap-4 overflow-x-auto">
-        {[
-          { label: 'Upcoming', value: upcomingEvents.length, color: 'text-orange-600' },
-          { label: 'Signups', value: totalSignups, color: 'text-orange-600' },
-          { label: 'Delivered', value: totalDelivered, color: 'text-green-600' },
-          { label: 'Pending', value: totalSignups - totalDelivered, color: 'text-amber-500' },
-          { label: 'Meal Bags', value: totalMealBags, color: 'text-purple-600' },
-          { label: 'Nutritional', value: totalNutritional, color: 'text-teal-600' },
-        ].map(({ label, value, color }) => (
-          <div key={label} className="text-center min-w-[60px]">
-            <p className={`text-2xl font-bold ${color}`}>{value}</p>
-            <p className="text-xs text-gray-400 whitespace-nowrap">{label}</p>
+      <div className="bg-white border-b border-gray-200">
+        {eventYears.length > 0 && (
+          <div className="px-4 pt-2 pb-1 flex items-center gap-2">
+            <span className="text-xs text-gray-400 whitespace-nowrap">Stats for:</span>
+            <select
+              value={statsYear}
+              onChange={e => setStatsYear(e.target.value)}
+              className="text-xs border border-gray-200 rounded-lg px-2 py-1 text-gray-600 focus:outline-none focus:border-orange-400"
+            >
+              <option value="">All time</option>
+              {eventYears.map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+            {statsYear && <span className="text-xs text-orange-500 font-medium">{statsYear}</span>}
           </div>
-        ))}
+        )}
+        <div className="px-4 py-3 flex gap-4 overflow-x-auto">
+          {[
+            { label: 'Upcoming', value: upcomingEvents.length, color: 'text-orange-600' },
+            { label: 'Signups', value: totalSignups, color: 'text-orange-600' },
+            { label: 'Delivered', value: totalDelivered, color: 'text-green-600' },
+            { label: 'Pending', value: totalSignups - totalDelivered, color: 'text-amber-500' },
+            { label: 'Meal Bags', value: totalMealBags, color: 'text-purple-600' },
+            { label: 'Nutritional', value: totalNutritional, color: 'text-teal-600' },
+          ].map(({ label, value, color }) => (
+            <div key={label} className="text-center min-w-[60px]">
+              <p className={`text-2xl font-bold ${color}`}>{value}</p>
+              <p className="text-xs text-gray-400 whitespace-nowrap">{label}</p>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Tabs */}
@@ -759,18 +827,37 @@ export default function AdminDashboard() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-semibold text-gray-800">Export CSV</p>
-                      <p className="text-xs text-gray-400">For records / taxes</p>
+                      <p className="text-xs text-gray-400">
+                        {csvMonth
+                          ? `File: seva-deliveries-${csvMonth}.csv`
+                          : csvYear
+                          ? `File: seva-deliveries-${csvYear}.csv`
+                          : 'File: seva-deliveries-all-time.csv'}
+                      </p>
                     </div>
-                    <button onClick={() => downloadCsv(events, signups, csvMonth || undefined)}
+                    <button
+                      onClick={() => downloadCsv(events, signups, contributions, {
+                        month: csvMonth || undefined,
+                        year: (!csvMonth && csvYear) ? csvYear : undefined,
+                      })}
                       className="bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold px-3 py-1.5 rounded-lg transition-colors">
                       ⬇ Export
                     </button>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex gap-2">
+                    <select value={csvYear} onChange={e => { setCsvYear(e.target.value); setCsvMonth(''); }}
+                      className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-gray-700 focus:outline-none focus:border-orange-400">
+                      <option value="">All years</option>
+                      {eventYears.map(y => <option key={y} value={y}>{y}</option>)}
+                    </select>
                     <select value={csvMonth} onChange={e => setCsvMonth(e.target.value)}
                       className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-gray-700 focus:outline-none focus:border-orange-400">
-                      <option value="">All time</option>
-                      {Array.from(new Set(events.map(e => e.date.slice(0, 7)))).sort().reverse().map(m => (
+                      <option value="">All months</option>
+                      {Array.from(new Set(
+                        events
+                          .filter(e => !csvYear || e.date.startsWith(csvYear))
+                          .map(e => e.date.slice(0, 7))
+                      )).sort().reverse().map(m => (
                         <option key={m} value={m}>
                           {new Date(m + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                         </option>
@@ -1240,11 +1327,35 @@ Thank you for your seva! 🙏`}
         {view === 'members' && (
           <div className="mt-2 space-y-3">
             <div className="bg-purple-50 border border-purple-100 rounded-2xl p-4">
-              <p className="font-bold text-purple-800 text-base">🫙 Volunteer Contributions</p>
-              <p className="text-sm text-purple-600 mt-0.5">{contributions.length} volunteers · {totalMealBags} meal bags{totalNutritional > 0 ? ` · ${totalNutritional} nutritional` : ''} delivered</p>
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="font-bold text-purple-800 text-base">🫙 Volunteer Contributions</p>
+                  <p className="text-sm text-purple-600 mt-0.5">
+                    {displayContributions.length} volunteers
+                    {' · '}{displayContributions.reduce((s, c) => s + Number(c.total_meal_bags), 0)} meal bags
+                    {displayContributions.reduce((s, c) => s + Number(c.nutritional_deliveries), 0) > 0
+                      ? ` · ${displayContributions.reduce((s, c) => s + Number(c.nutritional_deliveries), 0)} nutritional`
+                      : ''} delivered
+                    {membersYear ? ` in ${membersYear}` : ''}
+                  </p>
+                </div>
+                {eventYears.length > 0 && (
+                  <select
+                    value={membersYear}
+                    onChange={e => setMembersYear(e.target.value)}
+                    className="text-xs border border-purple-200 rounded-lg px-2 py-1.5 text-purple-700 focus:outline-none focus:border-purple-400 bg-white"
+                  >
+                    <option value="">All time</option>
+                    {eventYears.map(y => <option key={y} value={y}>{y}</option>)}
+                  </select>
+                )}
+              </div>
+              {membersYear && (
+                <p className="text-xs text-purple-400 mt-1">Showing {membersYear} only. Adjustments shown on all-time view.</p>
+              )}
             </div>
 
-            {contributions.length === 0 ? (
+            {displayContributions.length === 0 ? (
               <div className="text-center py-16 text-gray-400">
                 <div className="text-5xl mb-3">👥</div>
                 <p className="font-medium text-lg">No contributions yet</p>
@@ -1252,7 +1363,7 @@ Thank you for your seva! 🙏`}
               </div>
             ) : (
               <div className="space-y-2">
-                {contributions.map((c, i) => {
+                {displayContributions.map((c, i) => {
                   const isEditing = editingMember === c.member_phone;
                   return (
                     <div key={`${c.member_phone}-${i}`} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
