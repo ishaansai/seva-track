@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import {
-  getEvents, getSignups, addEvent, deleteEvent, updateEvent,
+  getEvents, getSignups, addEvent, updateEvent,
   addSignup, adminMarkDelivered, undoDelivery, confirmDelivery, removeSignup, deleteMember, getSlotsUsed,
   getCoordinator, getCoordinatorByUserId, updateCoordinator,
   updateCoordinatorPassword, signOutCoordinator,

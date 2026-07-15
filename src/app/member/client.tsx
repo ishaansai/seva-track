@@ -16,12 +16,6 @@ function formatDate(dateStr: string) {
 
 type SignupResult = { signup: Signup; event: SevaEvent };
 
-type CancelOtp = {
-  signup: Signup;
-  event: SevaEvent | undefined;
-  step: 'sending' | 'waiting' | 'verifying';
-  code: string;
-};
 
 interface Props {
   initialCoordinators: CoordinatorProfile[];
@@ -76,7 +70,6 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
   const [findLoading, setFindLoading] = useState(false);
 
   // Cancel OTP state — one at a time
-  const [cancelOtp, setCancelOtp] = useState<CancelOtp | null>(null);
 
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - 2);
