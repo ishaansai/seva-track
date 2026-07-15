@@ -239,13 +239,10 @@ export async function getAllSignups(coordIds?: string[]): Promise<Signup[]> {
 
 /** Returns the first coordinator in the DB — used as fallback when no ?coord= param is in the URL. */
 export async function getDefaultCoordinator(): Promise<CoordinatorProfile | null> {
-  // Prefer the most recently created non-demo coordinator
   const { data, error } = await supabase
     .from('coordinators')
     .select('id,name,email,phone,address,signup_open_day,signup_open_override,signup_close_override,notify_on_signup,approved')
-    .neq('id', 'seva2024')
-    .order('created_at', { ascending: false })
-    .limit(1)
+    .eq('id', 'g8rla2')
     .single();
   if (!error && data) return data as CoordinatorProfile;
   // Fall back to seva2024 if no other coordinator exists
