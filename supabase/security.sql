@@ -23,6 +23,9 @@ ALTER TABLE signups      ENABLE ROW LEVEL SECURITY;
 
 -- ─── Coordinator policies ─────────────────────────────────────
 
+DROP POLICY IF EXISTS "Public read coordinators"      ON coordinators;
+DROP POLICY IF EXISTS "Coordinator update own profile" ON coordinators;
+
 -- Anyone (including anonymous members) can read coordinator profiles.
 -- Needed so the member page can load the signup window & address.
 CREATE POLICY "Public read coordinators"
@@ -36,6 +39,9 @@ CREATE POLICY "Coordinator update own profile"
   WITH CHECK (user_id = auth.uid());
 
 -- ─── Event policies ───────────────────────────────────────────
+
+DROP POLICY IF EXISTS "Public read events"           ON events;
+DROP POLICY IF EXISTS "Coordinator manage own events" ON events;
 
 -- Anyone can read events (member signup form needs event list).
 CREATE POLICY "Public read events"
@@ -54,6 +60,11 @@ CREATE POLICY "Coordinator manage own events"
   );
 
 -- ─── Signup policies ─────────────────────────────────────────
+
+DROP POLICY IF EXISTS "Public read signups"          ON signups;
+DROP POLICY IF EXISTS "Public insert signups"        ON signups;
+DROP POLICY IF EXISTS "Public update signup"         ON signups;
+DROP POLICY IF EXISTS "Coordinator delete own signups" ON signups;
 
 -- Anyone can read signups.
 -- Needed so member can find their own pending delivery by phone.

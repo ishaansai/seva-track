@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS coordinators (
   signup_open_day       INT  NOT NULL DEFAULT 15,
   signup_open_override  DATE,
   signup_close_override DATE,
+  approved              BOOLEAN NOT NULL DEFAULT FALSE,
   created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -50,6 +51,7 @@ ALTER TABLE events       DISABLE ROW LEVEL SECURITY;
 ALTER TABLE signups      DISABLE ROW LEVEL SECURITY;
 
 -- 5. MEMBER CONTRIBUTIONS VIEW
+DROP VIEW IF EXISTS member_contributions;
 CREATE OR REPLACE VIEW member_contributions AS
 SELECT
   coord_id,

@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "seva-v2",
-      "runtimeExecutable": "/usr/local/bin/node",
-      "runtimeArgs": ["/usr/local/lib/node_modules/npm/bin/npm-cli.js", "run", "dev"],
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
       "port": 3000,
       "autoPort": true
     }

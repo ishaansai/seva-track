@@ -5,7 +5,7 @@ import { test, expect } from '@playwright/test';
 
 test('home page loads', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByText('Seva Track')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Seva Track' })).toBeVisible();
   await expect(page.getByText("I'm a Member")).toBeVisible();
   await expect(page.getByText('Admin Portal')).toBeVisible();
 });
@@ -13,13 +13,12 @@ test('home page loads', async ({ page }) => {
 test('member page loads', async ({ page }) => {
   await page.goto('/member');
   await expect(page).not.toHaveTitle(/error/i);
-  // Should show either events or "no upcoming dates"
   await expect(page.locator('body')).not.toContainText('Application error');
 });
 
 test('admin login page loads', async ({ page }) => {
   await page.goto('/admin');
-  await expect(page.getByRole('button', { name: /sign in|log in/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: /sign in|log in|login/i })).toBeVisible();
 });
 
 test('guide page loads', async ({ page }) => {

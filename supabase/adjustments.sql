@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS member_adjustments (
 -- 2. RLS: only the coordinator can read/write their own adjustments
 ALTER TABLE member_adjustments ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Coordinator manage own adjustments" ON member_adjustments;
 CREATE POLICY "Coordinator manage own adjustments"
   ON member_adjustments FOR ALL
   USING (
@@ -32,6 +33,8 @@ CREATE POLICY "Coordinator manage own adjustments"
 
 -- 3. UPDATED MEMBER CONTRIBUTIONS VIEW
 -- Adds manual adjustments on top of the auto-calculated totals.
+-- Drop first because CREATE OR REPLACE cannot rename existing view columns.
+DROP VIEW IF EXISTS member_contributions;
 CREATE OR REPLACE VIEW member_contributions AS
 SELECT
   s.coord_id,

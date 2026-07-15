@@ -9,5 +9,6 @@ CREATE TABLE IF NOT EXISTS members (
 
 -- Coordinators can only see/manage their own members
 ALTER TABLE members ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "coord_own_members" ON members;
 CREATE POLICY "coord_own_members" ON members
   USING (coord_id = current_setting('app.coord_id', true));

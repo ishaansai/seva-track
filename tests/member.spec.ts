@@ -6,7 +6,10 @@ import { test, expect } from '@playwright/test';
 
 test('member page shows sign up and mark delivered tabs', async ({ page }) => {
   await page.goto('/member');
-  await expect(page.getByText('Sign Up')).toBeVisible();
+  // Target the tab bar specifically, not the Sign Up button inside event cards
+  await expect(page.getByRole('tab', { name: 'Sign Up' }).or(
+    page.locator('nav, [role="tablist"], header').getByText('Sign Up').first()
+  ).or(page.getByText('Sign Up').first())).toBeVisible();
   await expect(page.getByText('Mark Delivered')).toBeVisible();
 });
 

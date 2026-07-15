@@ -12,8 +12,10 @@
 
 import { createClient } from '@supabase/supabase-js';
 import * as dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
 import * as path from 'path';
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../.env.local') });
 
 const SUPABASE_URL      = process.env.NEXT_PUBLIC_SUPABASE_URL!;

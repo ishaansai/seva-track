@@ -149,61 +149,19 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
     setFindLoading(false);
   }
 
-  // Step 1: user clicks cancel → send OTP to their phone
+  // OTP temporarily disabled — cancel goes straight through without verification
   async function initiateCancelSignup(signup: Signup, event: SevaEvent | undefined) {
-    setCancelOtp({ signup, event, step: 'sending', code: '' });
-    try {
-      const res = await fetch('/api/otp/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: signup.member_phone }),
-      });
-      const data = await res.json() as { error?: string };
-      if (!res.ok) {
-        setCancelOtp(null);
-        alert(data.error ?? 'Could not send verification code. Please try again.');
-        return;
-      }
-      setCancelOtp(prev => prev ? { ...prev, step: 'waiting' } : null);
-    } catch {
-      setCancelOtp(null);
-      alert('Could not send verification code. Please try again.');
-    }
-  }
-
-  // Step 2: user enters code → verify → cancel
-  async function confirmCancelSignup() {
-    if (!cancelOtp) return;
-    setCancelOtp(prev => prev ? { ...prev, step: 'verifying' } : null);
-
-    // Verify OTP
-    const verifyRes = await fetch('/api/otp/verify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone: cancelOtp.signup.member_phone, code: cancelOtp.code }),
-    });
-    if (!verifyRes.ok) {
-      const { error } = await verifyRes.json() as { error?: string };
-      setCancelOtp(prev => prev ? { ...prev, step: 'waiting' } : null);
-      alert(error ?? 'Incorrect code. Please try again.');
-      return;
-    }
-
-    // OTP verified — proceed with cancel
     const cancelRes = await fetch('/api/member/cancel', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ signupId: cancelOtp.signup.id }),
+      body: JSON.stringify({ signupId: signup.id }),
     });
     if (!cancelRes.ok) {
       const { error } = await cancelRes.json() as { error?: string };
-      setCancelOtp(null);
       alert(error ?? 'Could not cancel signup. Please contact your coordinator.');
       return;
     }
 
-    const { signup, event } = cancelOtp;
-    setCancelOtp(null);
     setMySignups(prev => prev ? prev.filter(s => s.id !== signup.id) : prev);
     setMySignedUpEventIds(prev => { const s = new Set(prev); s.delete(signup.event_id); return s; });
 
@@ -235,48 +193,8 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
 
   // Inline OTP panel shown when a cancel is in progress
   function CancelOtpPanel() {
-    if (!cancelOtp) return null;
-    const { step, code, signup } = cancelOtp;
-    const isBusy = step === 'sending' || step === 'verifying';
-    return (
-      <div className="fixed inset-0 bg-black/40 z-50 flex items-end justify-center" onClick={() => !isBusy && setCancelOtp(null)}>
-        <div className="bg-white rounded-t-3xl w-full max-w-lg p-6 pb-10 shadow-2xl" onClick={e => e.stopPropagation()}>
-          <p className="font-bold text-gray-800 text-lg mb-1">Verify to cancel</p>
-          <p className="text-sm text-gray-500 mb-4">
-            {step === 'sending'
-              ? 'Sending a verification code to your phone...'
-              : `Enter the 6-digit code sent to ${signup.member_phone.replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3')}`}
-          </p>
-          {step !== 'sending' && (
-            <>
-              <input
-                type="tel"
-                inputMode="numeric"
-                maxLength={6}
-                placeholder="000000"
-                value={code}
-                onChange={e => setCancelOtp(prev => prev ? { ...prev, code: e.target.value.replace(/\D/g, '') } : null)}
-                className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-2xl font-mono tracking-widest text-center focus:outline-none focus:border-orange-400 mb-3"
-              />
-              <button
-                onClick={confirmCancelSignup}
-                disabled={isBusy || code.length < 6}
-                className="w-full bg-red-500 hover:bg-red-600 text-white py-3.5 rounded-xl text-base font-semibold disabled:opacity-40 transition-colors mb-2"
-              >
-                {step === 'verifying' ? 'Verifying...' : 'Confirm Cancellation'}
-              </button>
-              <button
-                onClick={() => setCancelOtp(null)}
-                disabled={isBusy}
-                className="w-full py-3 text-sm text-gray-400 hover:text-gray-600"
-              >
-                Keep my signup
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-    );
+    // OTP disabled — panel not used
+    return null;
   }
 
   return (
@@ -727,25 +645,8 @@ function SignupForm({
   const canSendCode = name.trim().length > 0 && phone.replace(/\D/g, '').length >= 7 && !neitherSelected;
 
   async function sendCode() {
-    setOtpStep('sending');
-    setOtpError('');
-    try {
-      const res = await fetch('/api/otp/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: phone.replace(/\D/g, '') }),
-      });
-      const data = await res.json() as { error?: string };
-      if (!res.ok) {
-        setOtpStep('idle');
-        setOtpError(data.error ?? 'Could not send code. Please try again.');
-        return;
-      }
-      setOtpStep('waiting');
-    } catch {
-      setOtpStep('idle');
-      setOtpError('Could not send code. Please check your connection.');
-    }
+    // OTP temporarily disabled — sign up directly without verification
+    onConfirm();
   }
 
   async function verifyAndSignup() {
@@ -775,7 +676,7 @@ function SignupForm({
       <input type="text" placeholder="Your full name *" value={name} onChange={e => setName(e.target.value)}
         disabled={otpStep !== 'idle'}
         className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400 disabled:opacity-60" />
-      <input type="tel" inputMode="numeric" placeholder="Phone number * (a code will be sent here)" value={phone} onChange={e => setPhone(e.target.value)}
+      <input type="tel" inputMode="numeric" placeholder="Phone number *" value={phone} onChange={e => setPhone(e.target.value)}
         disabled={otpStep !== 'idle'}
         className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400 disabled:opacity-60" />
 
@@ -815,7 +716,7 @@ function SignupForm({
           <div className="flex gap-2">
             <button onClick={onCancel} className="flex-1 py-3 rounded-xl border border-gray-200 text-base text-gray-500">Cancel</button>
             <button onClick={sendCode} disabled={!canSendCode} className="flex-1 py-3 rounded-xl bg-orange-500 text-white text-base font-semibold disabled:opacity-40 hover:bg-orange-600 transition-colors">
-              Send Code
+              Sign Up
             </button>
           </div>
         </>
