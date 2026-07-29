@@ -388,7 +388,7 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
                           <div className="space-y-1.5 mb-3">
                             <SlotBar label="Meal Bags" used={slots.mealBagUsed} total={event.meal_bag_slots} />
                             {event.nutritional_slots >= 999
-                              ? <div className="flex justify-between text-sm"><span className="text-gray-500">Nutritional</span><span className="text-gray-500">Open</span></div>
+                              ? <div className="flex justify-between text-sm"><span className="text-gray-500">Nutritional</span><span className="text-gray-500">{slots.nutritionalUsed > 0 ? `${slots.nutritionalUsed} signed up · ` : ''}Open</span></div>
                               : <SlotBar label="Nutritional" used={slots.nutritionalUsed} total={event.nutritional_slots} />}
                           </div>
 
