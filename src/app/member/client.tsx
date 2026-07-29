@@ -361,7 +361,7 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
                       const slots = getSlotInfo(event);
                       const alreadyIn = mySignedUpEventIds.has(event.id);
                       const mySignup = signups.find(s => s.event_id === event.id && mySignedUpEventIds.has(event.id));
-                      const isFull = slots.mealBagAvail === 0 && slots.nutritionalAvail === 0;
+                      const isFull = slots.mealBagAvail === 0 && (event.nutritional_slots < 999 ? slots.nutritionalAvail === 0 : false);
                       const eventCoord = coordsById.get(event.coord_id);
 
                       return (
@@ -380,14 +380,16 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
                               <span className="text-sm bg-red-100 text-red-600 px-2 py-1 rounded-full font-medium">Full</span>
                             ) : (
                               <span className="text-sm bg-orange-100 text-orange-600 px-2 py-1 rounded-full font-medium">
-                                {slots.mealBagAvail + slots.nutritionalAvail} left
+                                {slots.mealBagAvail} left
                               </span>
                             )}
                           </div>
 
                           <div className="space-y-1.5 mb-3">
                             <SlotBar label="Meal Bags" used={slots.mealBagUsed} total={event.meal_bag_slots} />
-                            {event.nutritional_slots < 999 && <SlotBar label="Nutritional" used={slots.nutritionalUsed} total={event.nutritional_slots} />}
+                            {event.nutritional_slots >= 999
+                              ? <div className="flex justify-between text-sm"><span className="text-gray-500">Nutritional</span><span className="text-gray-500">Open</span></div>
+                              : <SlotBar label="Nutritional" used={slots.nutritionalUsed} total={event.nutritional_slots} />}
                           </div>
 
                           {(() => {
