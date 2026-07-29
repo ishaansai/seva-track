@@ -387,7 +387,7 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
 
                           <div className="space-y-1.5 mb-3">
                             <SlotBar label="Meal Bags" used={slots.mealBagUsed} total={event.meal_bag_slots} />
-                            <SlotBar label="Nutritional" used={slots.nutritionalUsed} total={event.nutritional_slots} />
+                            {event.nutritional_slots < 999 && <SlotBar label="Nutritional" used={slots.nutritionalUsed} total={event.nutritional_slots} />}
                           </div>
 
                           {(() => {
@@ -699,7 +699,7 @@ function SignupForm({
               <div>
                 <p className="text-base font-semibold text-gray-700">Nutritional Items</p>
                 <p className={`text-sm ${nutritionalDisabled ? 'text-red-400' : 'text-gray-400'}`}>
-                  {nutritionalDisabled ? 'No slots left' : `${slots.nutritionalAvail} spot${slots.nutritionalAvail !== 1 ? 's' : ''} left`}
+                  {nutritionalDisabled ? 'No slots left' : slots.nutritionalAvail >= 999 ? 'Open' : `${slots.nutritionalAvail} spot${slots.nutritionalAvail !== 1 ? 's' : ''} left`}
                 </p>
               </div>
             </label>

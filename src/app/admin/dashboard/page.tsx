@@ -196,7 +196,7 @@ export default function AdminDashboard() {
   const [newDates, setNewDates] = useState(['', '', '', '']);
   const [newNotes, setNewNotes] = useState(['', '', '', '']); // keep 4 default slots for familiarity
   const [mealBagSlots, setMealBagSlots] = useState(7);
-  const [nutritionalSlots, setNutritionalSlots] = useState(3);
+  const [nutritionalSlots, setNutritionalSlots] = useState(999);
   const [dropOffStart, setDropOffStart] = useState('18:00');
   const [dropOffEnd, setDropOffEnd] = useState('21:00');
   const [dropOffLocation, setDropOffLocation] = useState('');
