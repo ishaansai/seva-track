@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import {
-  getEvents, getSignups, addEvent, updateEvent,
-  addSignup, adminMarkDelivered, undoDelivery, confirmDelivery, removeSignup, deleteMember, getSlotsUsed,
+  getEvents, getSignups, getAllEvents, getAllSignups, addEvent, updateEvent,
+  confirmDelivery, deleteMember, getSlotsUsed,
   getCoordinator, getCoordinatorByUserId, updateCoordinator,
   updateCoordinatorPassword, signOutCoordinator,
   getMemberContributions, setMemberAdjustment, downloadCsv,
@@ -270,8 +270,8 @@ export default function AdminDashboard() {
     const isApprover = cid === 'ndsw75' || cid === 'g8rla2';
     const [profile, evs, sups, contribs, contacts, pending] = await Promise.all([
       getCoordinator(cid),
-      getEvents(cid),
-      getSignups(cid),
+      isApprover ? getAllEvents() : getEvents(cid),
+      isApprover ? getAllSignups() : getSignups(cid),
       getMemberContributions(cid),
       getMembers(cid),
       isApprover
@@ -296,14 +296,28 @@ export default function AdminDashboard() {
 
   async function refresh(cid?: string) {
     const id = cid ?? coordId;
+    const approver = id === 'ndsw75' || id === 'g8rla2';
     const [evs, sups, contribs] = await Promise.all([
-      getEvents(id),
-      getSignups(id),
+      approver ? getAllEvents() : getEvents(id),
+      approver ? getAllSignups() : getSignups(id),
       getMemberContributions(id),
     ]);
     setEvents(evs.sort((a, b) => a.date.localeCompare(b.date)));
     setSignups(sups);
     setContributions(contribs);
+  }
+
+  /** Call the service-role admin actions endpoint. Throws on error. */
+  async function adminAction(body: Record<string, unknown>): Promise<void> {
+    const res = await fetch('/api/admin/actions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({})) as { error?: string };
+      throw new Error(json.error ?? 'Admin action failed');
+    }
   }
 
   function handleCopyMonthLink() {
@@ -427,14 +441,22 @@ export default function AdminDashboard() {
   }
 
   async function handleAdminMarkDelivered(signupId: string) {
-    await adminMarkDelivered(signupId);
-    await refresh();
+    try {
+      await adminAction({ action: 'mark-delivered', signup_id: signupId });
+      await refresh();
+    } catch (e) {
+      alert('Could not mark as delivered — ' + (e instanceof Error ? e.message : 'unknown error'));
+    }
   }
 
   async function handleUndoDelivery(signupId: string) {
     if (!confirm('Undo this delivery? It will go back to pending.')) return;
-    await undoDelivery(signupId);
-    await refresh();
+    try {
+      await adminAction({ action: 'undo-delivery', signup_id: signupId });
+      await refresh();
+    } catch (e) {
+      alert('Could not undo delivery — ' + (e instanceof Error ? e.message : 'unknown error'));
+    }
   }
 
   async function handleConfirmDelivery(signupId: string) {
@@ -444,8 +466,12 @@ export default function AdminDashboard() {
 
   async function handleRemoveSignup(signupId: string) {
     if (!confirm('Remove this signup?')) return;
-    await removeSignup(signupId);
-    await refresh();
+    try {
+      await adminAction({ action: 'remove-signup', signup_id: signupId });
+      await refresh();
+    } catch (e) {
+      alert('Could not remove signup — ' + (e instanceof Error ? e.message : 'unknown error'));
+    }
   }
 
   async function handleDeleteMember(memberPhone: string, memberName: string) {
@@ -460,18 +486,23 @@ export default function AdminDashboard() {
     const itemType = checkboxesToItemType(addMeals, addNutritional);
     if (!itemType) return;
     setAddLoading(true);
-    await addSignup({
-      event_id: eventId,
-      coord_id: coordId,
-      member_name: addName.trim(),
-      member_phone: addContact.trim(),
-      item_type: itemType,
-      added_by_admin: true,
-    });
-    setAddName(''); setAddContact(''); setAddMeals(true); setAddNutritional(false);
-    setShowAddMember(false);
-    await refresh();
-    setAddLoading(false);
+    try {
+      await adminAction({
+        action: 'add-signup',
+        event_id: eventId,
+        coord_id: coordId,
+        member_name: addName.trim(),
+        member_phone: addContact.trim(),
+        item_type: itemType,
+      });
+      setAddName(''); setAddContact(''); setAddMeals(true); setAddNutritional(false);
+      setShowAddMember(false);
+      await refresh();
+    } catch (e) {
+      alert('Could not add member — ' + (e instanceof Error ? e.message : 'unknown error'));
+    } finally {
+      setAddLoading(false);
+    }
   }
 
   async function handleSaveSettings() {
