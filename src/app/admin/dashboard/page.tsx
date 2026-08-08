@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import {
-  getEvents, getSignups, getAllEvents, getAllSignups, addEvent,
+  getEvents, getSignups, addEvent,
   confirmDelivery, deleteMember, getSlotsUsed,
   getCoordinator, getCoordinatorByUserId, updateCoordinator,
   updateCoordinatorPassword, signOutCoordinator,
@@ -265,19 +265,27 @@ export default function AdminDashboard() {
     if (coord) setDropOffLocation(coord.address);
   }, [coord]);
 
+  async function fetchAllDataForApprover(): Promise<{ events: SevaEvent[]; signups: Signup[] }> {
+    const res = await fetch('/api/admin/all-data');
+    if (!res.ok) return { events: [], signups: [] };
+    return res.json() as Promise<{ events: SevaEvent[]; signups: Signup[] }>;
+  }
+
   async function loadAll(cid: string) {
     setLoading(true);
     const isApprover = cid === 'ndsw75' || cid === 'g8rla2';
-    const [profile, evs, sups, contribs, contacts, pending] = await Promise.all([
+    const [profile, allData, contribs, contacts, pending] = await Promise.all([
       getCoordinator(cid),
-      isApprover ? getAllEvents() : getEvents(cid),
-      isApprover ? getAllSignups() : getSignups(cid),
+      isApprover ? fetchAllDataForApprover() : Promise.resolve(null),
       getMemberContributions(cid),
       getMembers(cid),
       isApprover
         ? fetch('/api/admin/pending').then(r => r.json()).catch(() => [])
         : Promise.resolve([]),
     ]);
+    const [evs, sups] = allData
+      ? [allData.events, allData.signups]
+      : await Promise.all([getEvents(cid), getSignups(cid)]);
     if (!profile) { router.push('/admin'); return; }
     setCoord(profile);
     setSettingsName(profile.name);
@@ -297,11 +305,13 @@ export default function AdminDashboard() {
   async function refresh(cid?: string) {
     const id = cid ?? coordId;
     const approver = id === 'ndsw75' || id === 'g8rla2';
-    const [evs, sups, contribs] = await Promise.all([
-      approver ? getAllEvents() : getEvents(id),
-      approver ? getAllSignups() : getSignups(id),
+    const [allData, contribs] = await Promise.all([
+      approver ? fetchAllDataForApprover() : Promise.resolve(null),
       getMemberContributions(id),
     ]);
+    const [evs, sups] = allData
+      ? [allData.events, allData.signups]
+      : await Promise.all([getEvents(id), getSignups(id)]);
     setEvents(evs.sort((a, b) => a.date.localeCompare(b.date)));
     setSignups(sups);
     setContributions(contribs);
