@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import {
-  getEvents, getSignups, getAllEvents, getAllSignups, addEvent, updateEvent,
+  getEvents, getSignups, getAllEvents, getAllSignups, addEvent,
   confirmDelivery, deleteMember, getSlotsUsed,
   getCoordinator, getCoordinatorByUserId, updateCoordinator,
   updateCoordinatorPassword, signOutCoordinator,
@@ -393,15 +393,7 @@ export default function AdminDashboard() {
   async function handleDeleteEvent(id: string) {
     if (!confirm('Delete this date and all its signups?')) return;
     try {
-      const res = await fetch('/api/admin/delete-event', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eventId: id }),
-      });
-      if (!res.ok) {
-        const { error } = await res.json() as { error?: string };
-        throw new Error(error ?? 'Delete failed');
-      }
+      await adminAction({ action: 'delete-event', event_id: id });
       await refresh();
       setSelectedEvent(null);
     } catch (e) {
@@ -426,18 +418,27 @@ export default function AdminDashboard() {
 
   async function saveEventEdits(id: string) {
     setEditSaving(true);
-    await updateEvent(id, {
-      date: editDate,
-      meal_bag_slots: editMealBag,
-      nutritional_slots: editNutritional,
-      drop_off_start: editDropStart,
-      drop_off_end: editDropEnd,
-      drop_off_location: editLocation.trim() || coord?.address || '',
-      note: editNote.trim() || undefined,
-    });
-    await refresh();
-    setEditSaving(false);
-    setEditingSlots(false);
+    try {
+      await adminAction({
+        action: 'update-event',
+        event_id: id,
+        patch: {
+          date: editDate,
+          meal_bag_slots: editMealBag,
+          nutritional_slots: editNutritional,
+          drop_off_start: editDropStart,
+          drop_off_end: editDropEnd,
+          drop_off_location: editLocation.trim() || coord?.address || '',
+          note: editNote.trim() || undefined,
+        },
+      });
+      await refresh();
+      setEditingSlots(false);
+    } catch (e) {
+      alert('Could not save edits — ' + (e instanceof Error ? e.message : 'unknown error'));
+    } finally {
+      setEditSaving(false);
+    }
   }
 
   async function handleAdminMarkDelivered(signupId: string) {

@@ -38,6 +38,8 @@ async function getCallerCoordId(): Promise<string | null> {
   return data?.id ?? null;
 }
 
+const APPROVER_IDS = new Set(['ndsw75', 'g8rla2']);
+
 export async function POST(request: Request) {
   const coordId = await getCallerCoordId();
   if (!coordId) {
@@ -45,7 +47,13 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json() as {
-    action: 'add-signup' | 'mark-delivered' | 'undo-delivery' | 'remove-signup';
+    action:
+      | 'add-signup'
+      | 'mark-delivered'
+      | 'undo-delivery'
+      | 'remove-signup'
+      | 'update-event'
+      | 'delete-event';
     // add-signup fields
     event_id?: string;
     coord_id?: string;
@@ -54,6 +62,8 @@ export async function POST(request: Request) {
     item_type?: string;
     // mark-delivered / undo-delivery / remove-signup fields
     signup_id?: string;
+    // update-event / delete-event fields
+    patch?: Record<string, unknown>;
   };
 
   const admin = createAdminClient();
@@ -127,6 +137,35 @@ export async function POST(request: Request) {
   if (body.action === 'remove-signup') {
     if (!body.signup_id) return NextResponse.json({ error: 'Missing signup_id' }, { status: 400 });
     const { error } = await admin.from('signups').delete().eq('id', body.signup_id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (body.action === 'update-event') {
+    if (!body.event_id || !body.patch) {
+      return NextResponse.json({ error: 'Missing event_id or patch' }, { status: 400 });
+    }
+    // Verify caller owns the event OR is an approver
+    const { data: ev } = await admin.from('events').select('coord_id').eq('id', body.event_id).single();
+    if (!ev) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+    if (ev.coord_id !== coordId && !APPROVER_IDS.has(coordId)) {
+      return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    }
+    const { error } = await admin.from('events').update(body.patch).eq('id', body.event_id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (body.action === 'delete-event') {
+    if (!body.event_id) return NextResponse.json({ error: 'Missing event_id' }, { status: 400 });
+    // Verify caller owns the event OR is an approver
+    const { data: ev } = await admin.from('events').select('coord_id').eq('id', body.event_id).single();
+    if (!ev) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+    if (ev.coord_id !== coordId && !APPROVER_IDS.has(coordId)) {
+      return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    }
+    await admin.from('signups').delete().eq('event_id', body.event_id);
+    const { error } = await admin.from('events').delete().eq('id', body.event_id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true });
   }
