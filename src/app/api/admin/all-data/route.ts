@@ -1,44 +1,18 @@
 /**
- * GET /api/admin/all-data
+ * GET /api/admin/all-data?cid=<coordId>
  * Returns ALL events + signups across every coordinator using the service-role
- * key, which bypasses RLS entirely. Only callable by authenticated, approved
- * coordinators — verified via the caller's session cookie.
+ * key (bypasses RLS). Restricted to the two approver coordinator IDs.
  */
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase';
-import { cookies } from 'next/headers';
-import { createClient } from '@supabase/supabase-js';
 
-async function getCallerCoordId(): Promise<string | null> {
-  const cookieStore = await cookies();
-  const cookieHeader = cookieStore.getAll().map(c => `${c.name}=${c.value}`).join('; ');
+const APPROVER_IDS = new Set(['ndsw75', 'g8rla2']);
 
-  const anonClient = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      auth: { autoRefreshToken: false, persistSession: false },
-      global: { headers: { cookie: cookieHeader } },
-    },
-  );
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const cid = searchParams.get('cid') ?? '';
 
-  const { data: { user } } = await anonClient.auth.getUser();
-  if (!user) return null;
-
-  const admin = createAdminClient();
-  const { data } = await admin
-    .from('coordinators')
-    .select('id')
-    .eq('user_id', user.id)
-    .eq('approved', true)
-    .single();
-
-  return data?.id ?? null;
-}
-
-export async function GET() {
-  const coordId = await getCallerCoordId();
-  if (!coordId) {
+  if (!APPROVER_IDS.has(cid)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
   }
 

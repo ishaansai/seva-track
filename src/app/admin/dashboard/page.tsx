@@ -265,8 +265,8 @@ export default function AdminDashboard() {
     if (coord) setDropOffLocation(coord.address);
   }, [coord]);
 
-  async function fetchAllDataForApprover(): Promise<{ events: SevaEvent[]; signups: Signup[] }> {
-    const res = await fetch('/api/admin/all-data');
+  async function fetchAllDataForApprover(cid: string): Promise<{ events: SevaEvent[]; signups: Signup[] }> {
+    const res = await fetch(`/api/admin/all-data?cid=${cid}`);
     if (!res.ok) return { events: [], signups: [] };
     return res.json() as Promise<{ events: SevaEvent[]; signups: Signup[] }>;
   }
@@ -276,7 +276,7 @@ export default function AdminDashboard() {
     const isApprover = cid === 'ndsw75' || cid === 'g8rla2';
     const [profile, allData, contribs, contacts, pending] = await Promise.all([
       getCoordinator(cid),
-      isApprover ? fetchAllDataForApprover() : Promise.resolve(null),
+      isApprover ? fetchAllDataForApprover(cid) : Promise.resolve(null),
       getMemberContributions(cid),
       getMembers(cid),
       isApprover
@@ -306,7 +306,7 @@ export default function AdminDashboard() {
     const id = cid ?? coordId;
     const approver = id === 'ndsw75' || id === 'g8rla2';
     const [allData, contribs] = await Promise.all([
-      approver ? fetchAllDataForApprover() : Promise.resolve(null),
+      approver ? fetchAllDataForApprover(id) : Promise.resolve(null),
       getMemberContributions(id),
     ]);
     const [evs, sups] = allData
