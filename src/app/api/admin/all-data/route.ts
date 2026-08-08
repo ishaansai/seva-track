@@ -23,8 +23,8 @@ export async function GET(request: Request) {
     admin.from('signups').select('*').order('signed_up_at', { ascending: true }),
   ]);
 
-  return NextResponse.json({
-    events: events ?? [],
-    signups: signups ?? [],
-  });
+  return NextResponse.json(
+    { events: events ?? [], signups: signups ?? [] },
+    { headers: { 'Cache-Control': 'no-store' } },
+  );
 }
