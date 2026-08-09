@@ -12,16 +12,12 @@ import { createClient } from '@supabase/supabase-js';
 
 async function getCallerCoordId(): Promise<string | null> {
   const cookieStore = await cookies();
-  const allCookies = cookieStore.getAll();
-  const cookieHeader = allCookies.map(c => `${c.name}=${c.value}`).join('; ');
+  const cookieHeader = cookieStore.getAll().map(c => `${c.name}=${c.value}`).join('; ');
 
   const anonClient = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      auth: { autoRefreshToken: false, persistSession: false },
-      global: { headers: { cookie: cookieHeader } },
-    },
+    { global: { headers: { cookie: cookieHeader } } },
   );
 
   const { data: { user } } = await anonClient.auth.getUser();
@@ -32,7 +28,6 @@ async function getCallerCoordId(): Promise<string | null> {
     .from('coordinators')
     .select('id')
     .eq('user_id', user.id)
-    .eq('approved', true)
     .single();
 
   return data?.id ?? null;
