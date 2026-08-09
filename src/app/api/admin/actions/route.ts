@@ -7,23 +7,21 @@
  */
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase';
-import { cookies } from 'next/headers';
-import { createClient } from '@supabase/supabase-js';
 
-async function getCallerCoordId(): Promise<string | null> {
-  const cookieStore = await cookies();
-  const cookieHeader = cookieStore.getAll().map(c => `${c.name}=${c.value}`).join('; ');
-
-  const anonClient = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { cookie: cookieHeader } } },
-  );
-
-  const { data: { user } } = await anonClient.auth.getUser();
-  if (!user) return null;
+/**
+ * Verify the caller by reading the JWT from the Authorization header.
+ * The browser client stores the session in localStorage (not cookies),
+ * so cookie-based auth never works here. The dashboard passes the token
+ * explicitly via `Authorization: Bearer <token>`.
+ */
+async function getCallerCoordId(request: Request): Promise<string | null> {
+  const token = request.headers.get('Authorization')?.replace(/^Bearer\s+/, '');
+  if (!token) return null;
 
   const admin = createAdminClient();
+  const { data: { user } } = await admin.auth.getUser(token);
+  if (!user) return null;
+
   const { data } = await admin
     .from('coordinators')
     .select('id')
@@ -36,7 +34,7 @@ async function getCallerCoordId(): Promise<string | null> {
 const APPROVER_IDS = new Set(['ndsw75', 'g8rla2']);
 
 export async function POST(request: Request) {
-  const coordId = await getCallerCoordId();
+  const coordId = await getCallerCoordId(request);
   if (!coordId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
   }

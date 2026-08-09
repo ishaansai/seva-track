@@ -319,9 +319,13 @@ export default function AdminDashboard() {
 
   /** Call the service-role admin actions endpoint. Throws on error. */
   async function adminAction(body: Record<string, unknown>): Promise<void> {
+    const { data: { session } } = await supabase.auth.getSession();
     const res = await fetch('/api/admin/actions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+      },
       body: JSON.stringify(body),
     });
     if (!res.ok) {
