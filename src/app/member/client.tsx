@@ -62,6 +62,7 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
   const [wantsNutritional, setWantsNutritional] = useState(false);
   const [justSignedUp, setJustSignedUp] = useState<SignupResult | null>(null);
   const [mySignedUpEventIds, setMySignedUpEventIds] = useState<Set<string>>(new Set());
+  const [mySessionSignups, setMySessionSignups] = useState<Signup[]>([]); // all signups added this session
   const [signupLoading, setSignupLoading] = useState(false);
   const [view, setView] = useState<'signup' | 'deliver'>('signup');
   const [deliverPhone, setDeliverPhone] = useState('');
@@ -114,6 +115,7 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
       setSignups(prev => [...prev.filter(s => s.coord_id !== event.coord_id), ...sups]);
       setJustSignedUp({ signup, event });
       setMySignedUpEventIds(prev => new Set([...prev, event.id]));
+      setMySessionSignups(prev => [...prev, signup]);
       setShowForm(null);
       setName(''); setPhone(''); setWantsMeals(true); setWantsNutritional(false);
       // Fire-and-forget — notify coordinator, don't block the UI
@@ -122,8 +124,8 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ coordId: event.coord_id, memberName: signup.member_name, itemType, eventDate: event.date, action: 'signup' }),
       }).catch(() => {});
-    } catch {
-      alert('Could not sign up — you may already be signed up for this date.');
+    } catch (e) {
+      alert('Could not sign up — ' + (e instanceof Error ? e.message : 'please try again.'));
     } finally {
       setSignupLoading(false);
     }
@@ -156,7 +158,14 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
     }
 
     setMySignups(prev => prev ? prev.filter(s => s.id !== signup.id) : prev);
-    setMySignedUpEventIds(prev => { const s = new Set(prev); s.delete(signup.event_id); return s; });
+    setMySessionSignups(prev => {
+      const updated = prev.filter(s => s.id !== signup.id);
+      // Only remove from the event set if no more session signups for this event
+      if (!updated.some(s => s.event_id === signup.event_id)) {
+        setMySignedUpEventIds(ids => { const s = new Set(ids); s.delete(signup.event_id); return s; });
+      }
+      return updated;
+    });
 
     if (contactCoord?.phone) {
       const dateStr = event ? formatDate(event.date) : 'an event';
@@ -360,7 +369,8 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
                     {visibleEvents.map(event => {
                       const slots = getSlotInfo(event);
                       const alreadyIn = mySignedUpEventIds.has(event.id);
-                      const mySignup = signups.find(s => s.event_id === event.id && mySignedUpEventIds.has(event.id));
+                      const myEventSignups = mySessionSignups.filter(s => s.event_id === event.id);
+                      const mySignup = myEventSignups[0] ?? signups.find(s => s.event_id === event.id && mySignedUpEventIds.has(event.id));
                       const isFull = slots.mealBagAvail === 0 && (event.nutritional_slots < 999 ? slots.nutritionalAvail === 0 : false);
                       const eventCoord = coordsById.get(event.coord_id);
 
@@ -412,23 +422,41 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
 
                           {alreadyIn ? (
                             <div className="space-y-2">
-                              <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center gap-2">
-                                <span className="text-green-500">✓</span>
-                                <div>
-                                  <p className="text-green-700 font-medium text-base">You&apos;re signed up!</p>
-                                  {mySignup && <p className="text-green-600 text-sm">{itemTypeLabel(mySignup.item_type)}</p>}
+                              {myEventSignups.length > 0 ? myEventSignups.map(s => (
+                                <div key={s.id} className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-green-500">✓</span>
+                                    <div>
+                                      <p className="text-green-700 font-medium text-sm">Signed up — {itemTypeLabel(s.item_type)}</p>
+                                    </div>
+                                  </div>
+                                  <button
+                                    onClick={() => initiateCancelSignup(s, event)}
+                                    className="text-xs text-red-400 hover:text-red-600 shrink-0"
+                                  >Cancel</button>
                                 </div>
-                              </div>
-                              {mySignup && (
+                              )) : (
+                                <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center gap-2">
+                                  <span className="text-green-500">✓</span>
+                                  <p className="text-green-700 font-medium text-base">You&apos;re signed up!</p>
+                                </div>
+                              )}
+                              {showForm === event.id ? (
+                                <SignupForm
+                                  slots={slots}
+                                  name={name} setName={setName}
+                                  phone={phone} setPhone={setPhone}
+                                  wantsMeals={wantsMeals} setWantsMeals={setWantsMeals}
+                                  wantsNutritional={wantsNutritional} setWantsNutritional={setWantsNutritional}
+                                  loading={signupLoading}
+                                  onConfirm={() => handleSignup(event)}
+                                  onCancel={() => { setShowForm(null); setName(''); setPhone(''); setWantsMeals(true); setWantsNutritional(false); }}
+                                />
+                              ) : (
                                 <button
-                                  onClick={() => {
-                                    setMySignedUpEventIds(prev => { const s = new Set(prev); s.delete(event.id); return s; });
-                                    initiateCancelSignup(mySignup, event);
-                                  }}
-                                  className="w-full text-sm text-red-400 hover:text-red-600 py-2 border border-gray-100 rounded-xl hover:bg-red-50 transition-colors"
-                                >
-                                  Cancel my signup
-                                </button>
+                                  onClick={() => setShowForm(event.id)}
+                                  className="w-full text-sm text-orange-500 font-medium py-2 border border-orange-200 rounded-xl hover:bg-orange-50 transition-colors"
+                                >+ Add another slot</button>
                               )}
                             </div>
                           ) : isFull ? (
