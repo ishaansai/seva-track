@@ -370,7 +370,6 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
                       const slots = getSlotInfo(event);
                       const alreadyIn = mySignedUpEventIds.has(event.id);
                       const myEventSignups = mySessionSignups.filter(s => s.event_id === event.id);
-                      const mySignup = myEventSignups[0] ?? signups.find(s => s.event_id === event.id && mySignedUpEventIds.has(event.id));
                       const isFull = slots.mealBagAvail === 0 && (event.nutritional_slots < 999 ? slots.nutritionalAvail === 0 : false);
                       const eventCoord = coordsById.get(event.coord_id);
 
