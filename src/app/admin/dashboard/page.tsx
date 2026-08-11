@@ -1198,20 +1198,23 @@ Thank you for your seva! 🙏`}
                             </span>
                           </div>
                           {editingSignupId === signup.id ? (
-                            <div className="flex gap-1.5 mt-1 flex-wrap">
+                            <div className="flex gap-1.5 mt-2 flex-wrap">
                               {(['meals', 'nutritional', 'both'] as ItemType[]).map(t => (
                                 <button key={t} onClick={() => handleUpdateItemType(signup.id, t)}
-                                  className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-colors ${signup.item_type === t ? 'bg-orange-500 text-white border-orange-500' : 'border-gray-200 text-gray-600 hover:border-orange-300'}`}>
+                                  className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${signup.item_type === t ? 'bg-orange-500 text-white border-orange-500' : 'border-gray-200 text-gray-600 hover:border-orange-300'}`}>
                                   {itemTypeLabel(t)}
                                 </button>
                               ))}
-                              <button onClick={() => setEditingSignupId(null)} className="text-xs px-2 py-1 text-gray-400 hover:text-gray-600">✕</button>
+                              <button onClick={() => setEditingSignupId(null)} className="text-xs px-2 py-1.5 text-gray-400">✕</button>
                             </div>
                           ) : (
-                            <button onClick={() => setEditingSignupId(signup.id)}
-                              className="text-sm text-orange-600 mt-0.5 text-left hover:underline">
-                              {itemTypeLabel(signup.item_type)} ✎
-                            </button>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <p className="text-sm text-orange-600">{itemTypeLabel(signup.item_type)}</p>
+                              <button onClick={() => setEditingSignupId(signup.id)}
+                                className="text-xs text-gray-400 bg-gray-100 hover:bg-gray-200 px-2 py-0.5 rounded-full transition-colors">
+                                Edit
+                              </button>
+                            </div>
                           )}
                           {signup.member_phone && <p className="text-sm text-gray-400 mt-0.5">📞 {signup.member_phone}</p>}
                           {signup.delivered_at && (
