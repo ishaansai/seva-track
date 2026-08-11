@@ -224,6 +224,9 @@ export default function AdminDashboard() {
   const [addNutritional, setAddNutritional] = useState(false);
   const [addLoading, setAddLoading] = useState(false);
 
+  // Inline item-type editing
+  const [editingSignupId, setEditingSignupId] = useState<string | null>(null);
+
   // WhatsApp contact list (volunteers to notify when signups open)
   const [contactList, setContactList] = useState<Member[]>([]);
   const [newContactName, setNewContactName] = useState('');
@@ -486,6 +489,16 @@ export default function AdminDashboard() {
       await refresh();
     } catch (e) {
       alert('Could not remove signup — ' + (e instanceof Error ? e.message : 'unknown error'));
+    }
+  }
+
+  async function handleUpdateItemType(signupId: string, itemType: ItemType) {
+    try {
+      await adminAction({ action: 'update-signup', signup_id: signupId, patch: { item_type: itemType } });
+      setEditingSignupId(null);
+      await refresh();
+    } catch (e) {
+      alert('Could not update — ' + (e instanceof Error ? e.message : 'unknown error'));
     }
   }
 
@@ -1184,7 +1197,22 @@ Thank you for your seva! 🙏`}
                               {signup.status === 'confirmed' ? '✅ Confirmed' : isDone(signup) ? 'Delivered' : 'Pending'}
                             </span>
                           </div>
-                          <p className="text-sm text-orange-600 mt-0.5">{itemTypeLabel(signup.item_type)}</p>
+                          {editingSignupId === signup.id ? (
+                            <div className="flex gap-1.5 mt-1 flex-wrap">
+                              {(['meals', 'nutritional', 'both'] as ItemType[]).map(t => (
+                                <button key={t} onClick={() => handleUpdateItemType(signup.id, t)}
+                                  className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-colors ${signup.item_type === t ? 'bg-orange-500 text-white border-orange-500' : 'border-gray-200 text-gray-600 hover:border-orange-300'}`}>
+                                  {itemTypeLabel(t)}
+                                </button>
+                              ))}
+                              <button onClick={() => setEditingSignupId(null)} className="text-xs px-2 py-1 text-gray-400 hover:text-gray-600">✕</button>
+                            </div>
+                          ) : (
+                            <button onClick={() => setEditingSignupId(signup.id)}
+                              className="text-sm text-orange-600 mt-0.5 text-left hover:underline">
+                              {itemTypeLabel(signup.item_type)} ✎
+                            </button>
+                          )}
                           {signup.member_phone && <p className="text-sm text-gray-400 mt-0.5">📞 {signup.member_phone}</p>}
                           {signup.delivered_at && (
                             <p className="text-sm text-gray-400 mt-0.5">

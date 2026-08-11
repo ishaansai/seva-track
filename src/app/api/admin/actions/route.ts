@@ -45,6 +45,7 @@ export async function POST(request: Request) {
       | 'mark-delivered'
       | 'undo-delivery'
       | 'remove-signup'
+      | 'update-signup'
       | 'update-event'
       | 'delete-event';
     // add-signup fields
@@ -130,6 +131,19 @@ export async function POST(request: Request) {
   if (body.action === 'remove-signup') {
     if (!body.signup_id) return NextResponse.json({ error: 'Missing signup_id' }, { status: 400 });
     const { error } = await admin.from('signups').delete().eq('id', body.signup_id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (body.action === 'update-signup') {
+    if (!body.signup_id || !body.patch) {
+      return NextResponse.json({ error: 'Missing signup_id or patch' }, { status: 400 });
+    }
+    const allowed = ['item_type', 'member_name', 'member_phone'];
+    const safePatch = Object.fromEntries(
+      Object.entries(body.patch).filter(([k]) => allowed.includes(k))
+    );
+    const { error } = await admin.from('signups').update(safePatch).eq('id', body.signup_id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true });
   }
