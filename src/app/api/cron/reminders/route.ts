@@ -81,5 +81,41 @@ export async function GET(request: Request) {
     }
   }
 
+  // Start-of-week reminder: every Monday, remind all volunteers signed up
+  // for events happening in the next 7 days.
+  const isMonday = today.getDay() === 1;
+  if (isMonday) {
+    const weekEnd = dateIn(7);
+    const weekStart = today.toISOString().slice(0, 10);
+
+    const { data: weekEvents } = await admin
+      .from('events')
+      .select('*')
+      .gte('date', weekStart)
+      .lte('date', weekEnd);
+
+    for (const event of (weekEvents ?? [])) {
+      const { data: signups } = await admin
+        .from('signups').select('*')
+        .eq('event_id', event.id)
+        .neq('status', 'cancelled');
+
+      const weekday = new Date(event.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' });
+
+      for (const s of (signups ?? [])) {
+        if (!s.member_phone) continue;
+        try {
+          await sendSMS(
+            s.member_phone,
+            `Hi ${s.member_name}! 🙏 Seva Commons weekly reminder: you're signed up to deliver meal bags this ${weekday} (${fmt(event.date)})!\n\nDrop-off: ${formatTime(event.drop_off_start)}–${formatTime(event.drop_off_end)}\nLocation: ${event.drop_off_location}\n\nStart prepping your ingredients! Thank you for your seva! 🌸`,
+          );
+          results.push(`week-start → ${s.member_name} (${s.member_phone})`);
+        } catch (e) {
+          results.push(`week-start FAILED → ${s.member_name}: ${e}`);
+        }
+      }
+    }
+  }
+
   return NextResponse.json({ sent: results.length, results });
 }

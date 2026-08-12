@@ -122,7 +122,7 @@ export default function MemberPageClient({ initialCoordinators, initialEvents, i
       fetch('/api/member/notify-coordinator', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ coordId: event.coord_id, memberName: signup.member_name, itemType, eventDate: event.date, action: 'signup' }),
+        body: JSON.stringify({ coordId: event.coord_id, memberName: signup.member_name, itemType, eventDate: event.date, action: 'signup', memberPhone: phone.replace(/\D/g, ''), eventId: event.id }),
       }).catch(() => {});
     } catch (e) {
       alert('Could not sign up — ' + (e instanceof Error ? e.message : 'please try again.'));

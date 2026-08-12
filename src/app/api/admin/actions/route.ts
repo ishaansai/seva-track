@@ -7,6 +7,8 @@
  */
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase';
+import { sendSMS } from '@/lib/sms';
+import { formatTime } from '@/lib/ics';
 
 /**
  * Verify the caller by reading the JWT from the Authorization header.
@@ -105,6 +107,23 @@ export async function POST(request: Request) {
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    // Send confirmation SMS to the volunteer (fire-and-forget)
+    if (phone && data) {
+      const { data: ev } = await admin.from('events').select('date, drop_off_start, drop_off_end, drop_off_location').eq('id', body.event_id).single();
+      if (ev) {
+        const itemLabel =
+          body.item_type === 'meals' ? 'Meal Bags'
+          : body.item_type === 'nutritional' ? 'Nutritional Items'
+          : 'Meal Bags + Nutritional Items';
+        const date = new Date(ev.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+        sendSMS(
+          phone,
+          `Hi ${memberName}! 🙏 You've been signed up for Seva Commons meal bag delivery on ${date} (${itemLabel}).\n\nDrop-off: ${formatTime(ev.drop_off_start)}–${formatTime(ev.drop_off_end)}\nLocation: ${ev.drop_off_location}\n\nYou'll get a reminder at the start of the week and the day before. Thank you! 🌸`,
+        ).catch((e) => console.error('admin add-signup SMS failed:', e));
+      }
+    }
+
     return NextResponse.json(data);
   }
 
