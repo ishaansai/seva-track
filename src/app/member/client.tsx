@@ -701,6 +701,9 @@ function SignupForm({
       <input type="tel" inputMode="numeric" placeholder="Phone number *" value={phone} onChange={e => setPhone(e.target.value)}
         disabled={otpStep !== 'idle'}
         className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400 disabled:opacity-60" />
+      <p className="text-xs text-gray-400 px-1">
+        By providing your phone number, you consent to receive SMS delivery reminders from Seva Commons. Reply STOP to opt out at any time.
+      </p>
 
       {otpStep === 'idle' && (
         <>
