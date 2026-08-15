@@ -21,10 +21,7 @@ async function sendViaTwilio(to: string, body: string): Promise<void> {
   });
 }
 
-async function sendViaTextbelt(to: string, body: string): Promise<void> {
-  const key = process.env.TEXTBELT_KEY;
-  if (!key) throw new Error('TEXTBELT_KEY not set');
-
+async function sendViaTextbelt(to: string, body: string, key: string): Promise<void> {
   const digits = to.replace(/\D/g, '');
   const normalized = digits.startsWith('1') ? digits : '1' + digits;
 
@@ -41,16 +38,23 @@ async function sendViaTextbelt(to: string, body: string): Promise<void> {
 }
 
 export async function sendSMS(to: string, body: string): Promise<void> {
-  // Try Textbelt first
-  if (process.env.TEXTBELT_KEY) {
+  // Try Textbelt keys in order — if one hits its daily limit, the next one takes over
+  const textbeltKeys = [
+    process.env.TEXTBELT_KEY,
+    process.env.TEXTBELT_KEY_2,
+  ].filter(Boolean) as string[];
+
+  for (const key of textbeltKeys) {
     try {
-      await sendViaTextbelt(to, body);
+      await sendViaTextbelt(to, body, key);
       return;
     } catch (err) {
-      console.warn('[sms] Textbelt failed, falling back to Twilio:', err);
+      console.warn(`[sms] Textbelt key ...${key.slice(-6)} failed, trying next:`, err);
     }
   }
 
-  // Fall back to Twilio
+  // All Textbelt keys exhausted — fall back to Twilio
+  // (works automatically once A2P campaign CM4e2f6309ad84e9df69d2f3b63888f9ae is approved)
+  console.warn('[sms] All Textbelt keys exhausted, falling back to Twilio');
   await sendViaTwilio(to, body);
 }
