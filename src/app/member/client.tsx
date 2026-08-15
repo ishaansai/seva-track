@@ -664,7 +664,10 @@ function SignupForm({
   const neitherSelected = !wantsMeals && !wantsNutritional;
   const mealsDisabled = slots.mealBagAvail === 0;
   const nutritionalDisabled = slots.nutritionalAvail === 0;
-  const canSendCode = name.trim().length > 0 && phone.replace(/\D/g, '').length >= 7 && !neitherSelected;
+  const phoneDigits = phone.replace(/\D/g, '');
+  const phoneValid = phoneDigits.length === 10;
+  const phoneError = phone.trim().length > 0 && !phoneValid ? 'Please enter a valid 10-digit phone number' : '';
+  const canSendCode = name.trim().length > 0 && phoneValid && !neitherSelected;
 
   async function sendCode() {
     // OTP temporarily disabled — sign up directly without verification
@@ -700,7 +703,8 @@ function SignupForm({
         className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400 disabled:opacity-60" />
       <input type="tel" inputMode="numeric" placeholder="Phone number *" value={phone} onChange={e => setPhone(e.target.value)}
         disabled={otpStep !== 'idle'}
-        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400 disabled:opacity-60" />
+        className={`w-full border rounded-xl px-4 py-3 text-base focus:outline-none disabled:opacity-60 ${phoneError ? 'border-red-400 focus:border-red-400' : 'border-gray-200 focus:border-orange-400'}`} />
+      {phoneError && <p className="text-xs text-red-500 px-1">{phoneError}</p>}
       <p className="text-xs text-gray-400 px-1">
         By providing your phone number, you consent to receive SMS delivery reminders from Seva Commons. Reply STOP to opt out at any time.
       </p>
