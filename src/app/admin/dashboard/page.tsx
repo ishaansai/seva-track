@@ -675,38 +675,36 @@ export default function AdminDashboard() {
   const eventSignups = (eventId: string) => signups.filter(s => s.event_id === eventId);
   const deliveredCount = (id: string) => signups.filter(s => s.event_id === id && isDone(s)).length;
 
-  // Member contributions filtered by year — recalculated from raw signups when year is selected,
-  // so the filter works even though the DB view aggregates all-time.
-  const displayContributions: MemberContribution[] = membersYear
-    ? (() => {
-        const yearSignups = signups.filter(
-          s => events.find(e => e.id === s.event_id)?.date.startsWith(membersYear),
-        );
-        const map = new Map<string, MemberContribution>();
-        for (const s of yearSignups) {
-          if (!map.has(s.member_phone)) {
-            map.set(s.member_phone, {
-              coord_id: s.coord_id, member_name: s.member_name, member_phone: s.member_phone,
-              total_signups: 0, total_delivered: 0,
-              meal_bag_deliveries: 0, total_meal_bags: 0, nutritional_deliveries: 0,
-              meal_bag_adjustment: 0, nutritional_adjustment: 0, adjustment_note: '',
-              first_signup: s.signed_up_at, last_signup: s.signed_up_at,
-            });
-          }
-          const c = map.get(s.member_phone)!;
-          c.total_signups++;
-          const done = isDone(s);
-          if (done) {
-            c.total_delivered++;
-            if (s.item_type === 'meals' || s.item_type === 'both') { c.meal_bag_deliveries++; c.total_meal_bags += 20; }
-            if (s.item_type === 'nutritional' || s.item_type === 'both') { c.nutritional_deliveries++; }
-          }
-          if (s.signed_up_at > c.last_signup) c.last_signup = s.signed_up_at;
-          if (s.signed_up_at < c.first_signup) c.first_signup = s.signed_up_at;
-        }
-        return Array.from(map.values()).sort((a, b) => b.total_meal_bags - a.total_meal_bags);
-      })()
-    : contributions;
+  // Always compute member list from raw signups so all members appear
+  // (including those with only pending signups, not just delivered ones).
+  const displayContributions: MemberContribution[] = (() => {
+    const map = new Map<string, MemberContribution>();
+    for (const s of signups) {
+      if (!map.has(s.member_phone)) {
+        map.set(s.member_phone, {
+          coord_id: s.coord_id, member_name: s.member_name, member_phone: s.member_phone,
+          total_signups: 0, total_delivered: 0,
+          meal_bag_deliveries: 0, total_meal_bags: 0, nutritional_deliveries: 0,
+          // carry over adjustments from contributions DB view (all-time)
+          meal_bag_adjustment: contributions.find(c => c.member_phone === s.member_phone)?.meal_bag_adjustment ?? 0,
+          nutritional_adjustment: contributions.find(c => c.member_phone === s.member_phone)?.nutritional_adjustment ?? 0,
+          adjustment_note: contributions.find(c => c.member_phone === s.member_phone)?.adjustment_note ?? '',
+          first_signup: s.signed_up_at, last_signup: s.signed_up_at,
+        });
+      }
+      const c = map.get(s.member_phone)!;
+      c.total_signups++;
+      const done = isDone(s);
+      if (done) {
+        c.total_delivered++;
+        if (s.item_type === 'meals' || s.item_type === 'both') { c.meal_bag_deliveries++; c.total_meal_bags += 20; }
+        if (s.item_type === 'nutritional' || s.item_type === 'both') { c.nutritional_deliveries++; }
+      }
+      if (s.signed_up_at > c.last_signup) c.last_signup = s.signed_up_at;
+      if (s.signed_up_at < c.first_signup) c.first_signup = s.signed_up_at;
+    }
+    return Array.from(map.values()).sort((a, b) => b.total_meal_bags - a.total_meal_bags);
+  })();
 
   // This week: Sunday → Saturday containing today
   const todayDate = new Date();
@@ -1425,32 +1423,14 @@ Thank you for your seva! 🙏`}
         {view === 'members' && (
           <div className="mt-2 space-y-3">
             <div className="bg-purple-50 border border-purple-100 rounded-2xl p-4">
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <p className="font-bold text-purple-800 text-base">🫙 Volunteer Contributions</p>
-                  <p className="text-sm text-purple-600 mt-0.5">
-                    {displayContributions.length} volunteers
-                    {' · '}{displayContributions.reduce((s, c) => s + Number(c.total_meal_bags), 0)} meal bags
-                    {displayContributions.reduce((s, c) => s + Number(c.nutritional_deliveries), 0) > 0
-                      ? ` · ${displayContributions.reduce((s, c) => s + Number(c.nutritional_deliveries), 0)} nutritional`
-                      : ''} delivered
-                    {membersYear ? ` in ${membersYear}` : ''}
-                  </p>
-                </div>
-                {eventYears.length > 0 && (
-                  <select
-                    value={membersYear}
-                    onChange={e => setMembersYear(e.target.value)}
-                    className="text-xs border border-purple-200 rounded-lg px-2 py-1.5 text-purple-700 focus:outline-none focus:border-purple-400 bg-white"
-                  >
-                    <option value="">All time</option>
-                    {eventYears.map(y => <option key={y} value={y}>{y}</option>)}
-                  </select>
-                )}
-              </div>
-              {membersYear && (
-                <p className="text-xs text-purple-400 mt-1">Showing {membersYear} only. Adjustments shown on all-time view.</p>
-              )}
+              <p className="font-bold text-purple-800 text-base">🫙 Volunteer Contributions</p>
+              <p className="text-sm text-purple-600 mt-0.5">
+                {displayContributions.length} volunteers
+                {' · '}{displayContributions.reduce((s, c) => s + Number(c.total_meal_bags), 0)} meal bags
+                {displayContributions.reduce((s, c) => s + Number(c.nutritional_deliveries), 0) > 0
+                  ? ` · ${displayContributions.reduce((s, c) => s + Number(c.nutritional_deliveries), 0)} nutritional`
+                  : ''} delivered
+              </p>
             </div>
 
             {displayContributions.length === 0 ? (
