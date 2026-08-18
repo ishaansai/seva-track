@@ -174,8 +174,6 @@ export default function AdminDashboard() {
   // Stats strip year filter
   const [statsYear, setStatsYear] = useState('');
 
-  // Members tab year filter
-  const [membersYear, setMembersYear] = useState('');
 
   // Manual adjustment edit state
   const [editingMember, setEditingMember]         = useState<string | null>(null); // member_phone
