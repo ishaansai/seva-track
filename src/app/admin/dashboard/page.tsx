@@ -183,6 +183,11 @@ export default function AdminDashboard() {
   const [adjNutritional, setAdjNutritional]       = useState(0);
   const [adjNote,       setAdjNote]               = useState('');
   const [adjSaving,     setAdjSaving]             = useState(false);
+
+  // Phone edit state
+  const [editingPhone, setEditingPhone]   = useState<string | null>(null); // old member_phone being edited
+  const [editPhoneValue, setEditPhoneValue] = useState('');
+  const [phoneSaving, setPhoneSaving]     = useState(false);
   const [view, setView] = useState<'events' | 'create' | 'members' | 'settings' | 'logistics'>('events');
   const [selectedEvent, setSelectedEvent] = useState<string | null>(null);
   const [memberUrl, setMemberUrl] = useState('');
@@ -583,6 +588,22 @@ export default function AdminDashboard() {
       setEditingMember(null);
     } finally {
       setAdjSaving(false);
+    }
+  }
+
+  async function handleUpdatePhone(oldPhone: string) {
+    const digits = editPhoneValue.replace(/\D/g, '');
+    if (digits.length !== 10) return;
+    setPhoneSaving(true);
+    try {
+      await adminAction({ action: 'update-member-phone', old_phone: oldPhone, new_phone: digits });
+      setEditingPhone(null);
+      setEditPhoneValue('');
+      await refresh();
+    } catch (e) {
+      alert('Could not update phone — ' + (e instanceof Error ? e.message : 'unknown error'));
+    } finally {
+      setPhoneSaving(false);
     }
   }
 
@@ -1447,7 +1468,38 @@ Thank you for your seva! 🙏`}
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-gray-800 text-base truncate">{c.member_name}</p>
-                          {c.member_phone && <p className="text-sm text-gray-400">{c.member_phone}</p>}
+                          {editingPhone === c.member_phone ? (
+                            <div className="flex items-center gap-1.5 mt-1">
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={editPhoneValue}
+                                onChange={e => setEditPhoneValue(e.target.value)}
+                                placeholder="10-digit number"
+                                className={`flex-1 min-w-0 border rounded-lg px-2 py-1 text-sm focus:outline-none ${editPhoneValue.replace(/\D/g,'').length === 10 ? 'border-green-400' : 'border-red-300 focus:border-red-400'}`}
+                              />
+                              <button
+                                onClick={() => handleUpdatePhone(c.member_phone)}
+                                disabled={editPhoneValue.replace(/\D/g,'').length !== 10 || phoneSaving}
+                                className="bg-green-500 hover:bg-green-600 disabled:opacity-40 text-white text-xs font-bold px-2 py-1 rounded-lg transition-colors"
+                              >
+                                {phoneSaving ? '…' : '✓'}
+                              </button>
+                              <button
+                                onClick={() => { setEditingPhone(null); setEditPhoneValue(''); }}
+                                className="text-gray-400 hover:text-gray-600 text-xs px-1"
+                              >✕</button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <p className="text-sm text-gray-400">{c.member_phone || <span className="italic text-red-400">No phone</span>}</p>
+                              <button
+                                onClick={() => { setEditingPhone(c.member_phone); setEditPhoneValue(c.member_phone ?? ''); setEditingMember(null); }}
+                                className="text-xs text-gray-300 hover:text-orange-400 transition-colors"
+                                title="Edit phone number"
+                              >✏️</button>
+                            </div>
+                          )}
                         </div>
                         <div className="flex items-start gap-2">
                           <div className="flex gap-3 flex-shrink-0">

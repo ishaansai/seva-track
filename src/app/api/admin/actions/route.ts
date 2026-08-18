@@ -47,7 +47,8 @@ export async function POST(request: Request) {
       | 'remove-signup'
       | 'update-signup'
       | 'update-event'
-      | 'delete-event';
+      | 'delete-event'
+      | 'update-member-phone';
     // add-signup fields
     event_id?: string;
     coord_id?: string;
@@ -58,6 +59,9 @@ export async function POST(request: Request) {
     signup_id?: string;
     // update-event / delete-event fields
     patch?: Record<string, unknown>;
+    // update-member-phone fields
+    old_phone?: string;
+    new_phone?: string;
   };
 
   const admin = createAdminClient();
@@ -192,6 +196,25 @@ export async function POST(request: Request) {
     }
     await admin.from('signups').delete().eq('event_id', body.event_id);
     const { error } = await admin.from('events').delete().eq('id', body.event_id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (body.action === 'update-member-phone') {
+    const { old_phone, new_phone } = body;
+    if (!old_phone || !new_phone) {
+      return NextResponse.json({ error: 'Missing old_phone or new_phone' }, { status: 400 });
+    }
+    const digits = new_phone.replace(/\D/g, '');
+    if (digits.length !== 10) {
+      return NextResponse.json({ error: 'Phone must be exactly 10 digits' }, { status: 400 });
+    }
+    // Update all signups for this member+coordinator
+    const { error } = await admin
+      .from('signups')
+      .update({ member_phone: digits })
+      .eq('coord_id', coordId)
+      .eq('member_phone', old_phone.replace(/\D/g, ''));
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true });
   }
