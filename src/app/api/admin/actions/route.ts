@@ -7,6 +7,8 @@
  */
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase';
+import { sendSMS } from '@/lib/sms';
+import { formatTime } from '@/lib/ics';
 
 /**
  * Verify the caller by reading the JWT from the Authorization header.
@@ -48,7 +50,8 @@ export async function POST(request: Request) {
       | 'update-signup'
       | 'update-event'
       | 'delete-event'
-      | 'update-member-phone';
+      | 'update-member-phone'
+      | 'send-reminder';
     // add-signup fields
     event_id?: string;
     coord_id?: string;
@@ -217,6 +220,40 @@ export async function POST(request: Request) {
       .eq('member_phone', old_phone.replace(/\D/g, ''));
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true });
+  }
+
+  if (body.action === 'send-reminder') {
+    if (!body.signup_id) return NextResponse.json({ error: 'Missing signup_id' }, { status: 400 });
+    const { data: s, error: sErr } = await admin
+      .from('signups')
+      .select('member_name, member_phone, event_id, item_type')
+      .eq('id', body.signup_id)
+      .single();
+    if (sErr || !s) return NextResponse.json({ error: 'Signup not found' }, { status: 404 });
+    if (!s.member_phone) return NextResponse.json({ error: 'No phone on file' }, { status: 400 });
+
+    const { data: ev } = await admin
+      .from('events')
+      .select('date, drop_off_start, drop_off_end, drop_off_location')
+      .eq('id', s.event_id)
+      .single();
+    if (!ev) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+
+    const dayLabel = new Date(ev.date + 'T12:00:00').toLocaleDateString('en-US', {
+      weekday: 'long', month: 'long', day: 'numeric',
+    });
+    const dropOff = ev.drop_off_start && ev.drop_off_end
+      ? `${formatTime(ev.drop_off_start)}–${formatTime(ev.drop_off_end)}`
+      : '';
+
+    const msg = `Hi ${s.member_name}! 🙏 Seva Commons reminder: you're signed up to deliver meal bags on ${dayLabel}.\n\nDrop-off: ${dropOff}\nLocation: ${ev.drop_off_location ?? ''}\n\nThank you for your seva! Reply STOP to opt out.`;
+
+    try {
+      await sendSMS(s.member_phone, msg);
+      return NextResponse.json({ ok: true });
+    } catch (e) {
+      return NextResponse.json({ error: String(e) }, { status: 500 });
+    }
   }
 
   return NextResponse.json({ error: 'Unknown action' }, { status: 400 });

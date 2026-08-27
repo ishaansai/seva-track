@@ -182,6 +182,9 @@ export default function AdminDashboard() {
   const [adjNote,       setAdjNote]               = useState('');
   const [adjSaving,     setAdjSaving]             = useState(false);
 
+  // Per-volunteer reminder sending state (signup id → 'sending' | 'sent' | 'error')
+  const [reminderState, setReminderState] = useState<Record<string, 'sending' | 'sent' | 'error'>>({});
+
   // Phone edit state
   const [editingPhone, setEditingPhone]   = useState<string | null>(null); // old member_phone being edited
   const [editPhoneValue, setEditPhoneValue] = useState('');
@@ -337,6 +340,18 @@ export default function AdminDashboard() {
     if (!res.ok) {
       const json = await res.json().catch(() => ({})) as { error?: string };
       throw new Error(json.error ?? 'Admin action failed');
+    }
+  }
+
+  async function handleSendReminder(signupId: string) {
+    setReminderState(prev => ({ ...prev, [signupId]: 'sending' }));
+    try {
+      await adminAction({ action: 'send-reminder', signup_id: signupId });
+      setReminderState(prev => ({ ...prev, [signupId]: 'sent' }));
+      setTimeout(() => setReminderState(prev => { const n = { ...prev }; delete n[signupId]; return n; }), 3000);
+    } catch {
+      setReminderState(prev => ({ ...prev, [signupId]: 'error' }));
+      setTimeout(() => setReminderState(prev => { const n = { ...prev }; delete n[signupId]; return n; }), 3000);
     }
   }
 
@@ -1264,6 +1279,23 @@ Thank you for your seva! 🙏`}
                           <button onClick={() => handleUndoDelivery(signup.id)}
                             className="flex-1 bg-amber-50 hover:bg-amber-100 text-amber-700 text-sm font-semibold py-2.5 rounded-xl border border-amber-200 transition-colors">
                             ↩ Undo Delivery
+                          </button>
+                        )}
+                        {signup.member_phone && (
+                          <button
+                            onClick={() => handleSendReminder(signup.id)}
+                            disabled={!!reminderState[signup.id]}
+                            className={`px-3 py-2.5 rounded-xl text-sm font-semibold border transition-colors ${
+                              reminderState[signup.id] === 'sent'  ? 'bg-blue-100 text-blue-700 border-blue-200' :
+                              reminderState[signup.id] === 'error' ? 'bg-red-50 text-red-500 border-red-200' :
+                              reminderState[signup.id] === 'sending' ? 'bg-gray-50 text-gray-400 border-gray-100' :
+                              'bg-blue-50 hover:bg-blue-100 text-blue-600 border-blue-100'
+                            }`}
+                          >
+                            {reminderState[signup.id] === 'sending' ? '…' :
+                             reminderState[signup.id] === 'sent'    ? '✓ Sent' :
+                             reminderState[signup.id] === 'error'   ? '✗ Fail' :
+                             '📨'}
                           </button>
                         )}
                         <button onClick={() => handleRemoveSignup(signup.id)}
