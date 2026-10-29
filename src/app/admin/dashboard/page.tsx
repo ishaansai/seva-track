@@ -230,8 +230,20 @@ export default function AdminDashboard() {
   const [addNutritional, setAddNutritional] = useState(false);
   const [addLoading, setAddLoading] = useState(false);
 
+  // Bulk import (WhatsApp poll)
+  const [showBulkImport, setShowBulkImport] = useState(false);
+  const [bulkRows, setBulkRows] = useState<{ name: string; phone: string }[]>([{ name: '', phone: '' }]);
+  const [bulkMeals, setBulkMeals] = useState(true);
+  const [bulkNutritional, setBulkNutritional] = useState(false);
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkResult, setBulkResult] = useState<{ added: number; skipped: number } | null>(null);
+
   // Inline item-type editing
   const [editingSignupId, setEditingSignupId] = useState<string | null>(null);
+
+  // Inline phone editing for signups
+  const [editingSignupPhone, setEditingSignupPhone] = useState<string | null>(null);
+  const [editSignupPhoneValue, setEditSignupPhoneValue] = useState('');
 
   // WhatsApp contact list (volunteers to notify when signups open)
   const [contactList, setContactList] = useState<Member[]>([]);
@@ -510,6 +522,19 @@ export default function AdminDashboard() {
     }
   }
 
+  async function handleUpdateSignupPhone(signupId: string) {
+    const digits = editSignupPhoneValue.replace(/\D/g, '');
+    if (digits.length < 10) return;
+    try {
+      await adminAction({ action: 'update-signup', signup_id: signupId, patch: { member_phone: digits } });
+      setEditingSignupPhone(null);
+      setEditSignupPhoneValue('');
+      await refresh();
+    } catch (e) {
+      alert('Could not update phone — ' + (e instanceof Error ? e.message : 'unknown error'));
+    }
+  }
+
   async function handleUpdateItemType(signupId: string, itemType: ItemType) {
     try {
       await adminAction({ action: 'update-signup', signup_id: signupId, patch: { item_type: itemType } });
@@ -549,6 +574,38 @@ export default function AdminDashboard() {
     } finally {
       setAddLoading(false);
     }
+  }
+
+  async function handleBulkImport(eventId: string) {
+    const itemType = checkboxesToItemType(bulkMeals, bulkNutritional);
+    if (!itemType) return;
+    const validRows = bulkRows.filter(r => r.name.trim());
+    if (validRows.length === 0) return;
+    setBulkLoading(true);
+    setBulkResult(null);
+    let added = 0; let skipped = 0;
+    const existingBefore = signups.filter(s => s.event_id === eventId).map(s => s.member_phone);
+    for (const row of validRows) {
+      const cleanPhone = row.phone.trim().replace(/\D/g, '');
+      if (cleanPhone && existingBefore.includes(cleanPhone)) { skipped++; continue; }
+      try {
+        await adminAction({
+          action: 'add-signup',
+          event_id: eventId,
+          coord_id: coordId,
+          member_name: row.name.trim(),
+          member_phone: row.phone.trim(),
+          item_type: itemType,
+        });
+        added++;
+        if (cleanPhone) existingBefore.push(cleanPhone);
+      } catch { skipped++; }
+    }
+    await refresh();
+    setBulkResult({ added, skipped });
+    setBulkLoading(false);
+    setBulkRows([{ name: '', phone: '' }]);
+    setBulkMeals(true); setBulkNutritional(false);
   }
 
   async function handleSaveSettings() {
@@ -1060,9 +1117,13 @@ export default function AdminDashboard() {
             </div>
 
             <div className="flex gap-2">
-              <button onClick={() => { setShowAddMember(!showAddMember); setShowNudge(false); }}
+              <button onClick={() => { setShowAddMember(!showAddMember); setShowNudge(false); setShowBulkImport(false); }}
                 className={`flex-1 py-3 rounded-xl text-base font-semibold border transition-colors ${showAddMember ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-orange-600 border-orange-200 hover:bg-orange-50'}`}>
                 + Add Member
+              </button>
+              <button onClick={() => { setShowBulkImport(!showBulkImport); setShowAddMember(false); setShowNudge(false); setBulkResult(null); }}
+                className={`flex-1 py-3 rounded-xl text-base font-semibold border transition-colors ${showBulkImport ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-blue-600 border-blue-200 hover:bg-blue-50'}`}>
+                📋 Bulk Import
               </button>
               {pendingSignups.length > 0 && (
                 <button onClick={() => { setShowNudge(!showNudge); setShowAddMember(false); }}
@@ -1075,15 +1136,55 @@ export default function AdminDashboard() {
             {showAddMember && (
               <div className="bg-white rounded-2xl p-4 shadow-sm border border-orange-200 space-y-3">
                 <p className="font-semibold text-gray-800 text-base">Add Member Manually</p>
-                <input type="text" placeholder="Name *" value={addName} onChange={e => setAddName(e.target.value)}
+                <input type="text" placeholder="Name *" value={addName} onChange={e => setAddName(e.target.value)} autoComplete="off" autoCorrect="off" autoCapitalize="words" spellCheck={false}
                   className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400" />
-                <input type="text" inputMode="numeric" placeholder="Phone" value={addContact} onChange={e => setAddContact(e.target.value)}
+                <input type="text" inputMode="numeric" placeholder="Phone" value={addContact} onChange={e => setAddContact(e.target.value)} autoComplete="off"
                   className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-400" />
                 <ItemTypePicker wantsMeals={addMeals} setWantsMeals={setAddMeals} wantsNutritional={addNutritional} setWantsNutritional={setAddNutritional} />
                 {!addMeals && !addNutritional && <p className="text-sm text-red-500">Select at least one item type</p>}
                 <button onClick={() => handleAddMember(selectedEvent)} disabled={!addName.trim() || (!addMeals && !addNutritional) || addLoading}
                   className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-40 text-white py-3 rounded-xl text-base font-semibold">
                   {addLoading ? 'Adding…' : 'Add to List'}
+                </button>
+              </div>
+            )}
+
+            {showBulkImport && (
+              <div className="bg-white rounded-2xl p-4 shadow-sm border border-blue-200 space-y-3">
+                <p className="font-semibold text-gray-800 text-base">📋 Bulk Import from WhatsApp Poll</p>
+                <p className="text-sm text-gray-500">Paste names + numbers from the poll. Phone is optional but recommended.</p>
+                <ItemTypePicker wantsMeals={bulkMeals} setWantsMeals={setBulkMeals} wantsNutritional={bulkNutritional} setWantsNutritional={setBulkNutritional} />
+                {!bulkMeals && !bulkNutritional && <p className="text-sm text-red-500">Select at least one item type</p>}
+                <div className="space-y-2">
+                  {bulkRows.map((row, i) => (
+                    <div key={i} className="flex gap-2 items-center">
+                      <input type="text" placeholder={`Name ${i + 1} *`} value={row.name} autoComplete="off" autoCorrect="off" autoCapitalize="words" spellCheck={false}
+                        onChange={e => { const r = [...bulkRows]; r[i] = { ...r[i], name: e.target.value }; setBulkRows(r); }}
+                        className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400" />
+                      <input type="text" inputMode="numeric" placeholder="Phone" value={row.phone} autoComplete="off"
+                        onChange={e => { const r = [...bulkRows]; r[i] = { ...r[i], phone: e.target.value }; setBulkRows(r); }}
+                        className="w-32 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400" />
+                      {bulkRows.length > 1 && (
+                        <button onClick={() => setBulkRows(bulkRows.filter((_, j) => j !== i))}
+                          className="text-gray-400 hover:text-red-500 text-lg font-bold px-1">×</button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <button onClick={() => setBulkRows([...bulkRows, { name: '', phone: '' }])}
+                  className="w-full py-2 rounded-xl border border-dashed border-blue-300 text-blue-600 text-sm font-medium hover:bg-blue-50">
+                  + Add Row
+                </button>
+                {bulkResult && (
+                  <div className={`rounded-xl p-3 text-sm font-medium ${bulkResult.added > 0 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gray-50 text-gray-600 border border-gray-200'}`}>
+                    {bulkResult.added > 0 ? `✅ Added ${bulkResult.added} volunteer${bulkResult.added !== 1 ? 's' : ''}` : ''}
+                    {bulkResult.skipped > 0 ? `${bulkResult.added > 0 ? ' · ' : ''}⏭ ${bulkResult.skipped} skipped (already signed up)` : ''}
+                  </div>
+                )}
+                <button onClick={() => handleBulkImport(selectedEvent!)}
+                  disabled={bulkLoading || (!bulkMeals && !bulkNutritional) || bulkRows.every(r => !r.name.trim())}
+                  className="w-full bg-blue-500 hover:bg-blue-600 disabled:opacity-40 text-white py-3 rounded-xl text-base font-semibold">
+                  {bulkLoading ? 'Importing…' : `Import ${bulkRows.filter(r => r.name.trim()).length || ''} Volunteer${bulkRows.filter(r => r.name.trim()).length !== 1 ? 's' : ''}`}
                 </button>
               </div>
             )}
@@ -1248,7 +1349,30 @@ Thank you for your seva! 🙏`}
                               </button>
                             </div>
                           )}
-                          {signup.member_phone && <p className="text-sm text-gray-400 mt-0.5">📞 {signup.member_phone}</p>}
+                          {editingSignupPhone === signup.id ? (
+                            <div className="flex items-center gap-1.5 mt-1">
+                              <input
+                                type="text" inputMode="numeric" autoComplete="off"
+                                value={editSignupPhoneValue}
+                                onChange={e => setEditSignupPhoneValue(e.target.value)}
+                                placeholder="Phone number"
+                                className={`flex-1 border rounded-lg px-2 py-1 text-sm focus:outline-none ${editSignupPhoneValue.replace(/\D/g,'').length >= 10 ? 'border-green-400' : 'border-gray-200'}`}
+                              />
+                              <button onClick={() => handleUpdateSignupPhone(signup.id)}
+                                disabled={editSignupPhoneValue.replace(/\D/g,'').length < 10}
+                                className="text-xs bg-orange-500 disabled:opacity-40 text-white px-2 py-1 rounded-lg">Save</button>
+                              <button onClick={() => { setEditingSignupPhone(null); setEditSignupPhoneValue(''); }}
+                                className="text-xs text-gray-400 px-1">✕</button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <p className="text-sm text-gray-400">📞 {signup.member_phone || 'No phone'}</p>
+                              <button onClick={() => { setEditingSignupPhone(signup.id); setEditSignupPhoneValue(signup.member_phone ?? ''); }}
+                                className="text-xs text-gray-400 bg-gray-100 hover:bg-gray-200 px-2 py-0.5 rounded-full transition-colors">
+                                Edit
+                              </button>
+                            </div>
+                          )}
                           {signup.delivered_at && (
                             <p className="text-sm text-gray-400 mt-0.5">
                               {new Date(signup.delivered_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
