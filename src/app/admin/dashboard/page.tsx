@@ -1190,14 +1190,15 @@ export default function AdminDashboard() {
                             <input type="text" placeholder={`Name ${i + 1} *`} value={row.name} autoComplete="off" autoCorrect="off" autoCapitalize="words" spellCheck={false}
                               onChange={e => { const r = [...bulkRows]; r[i] = { ...r[i], name: e.target.value }; setBulkRows(r); }}
                               onFocus={() => setBulkFocusedRow(i)}
-                              onBlur={() => setTimeout(() => setBulkFocusedRow(null), 150)}
+                              onBlur={() => setTimeout(() => setBulkFocusedRow(null), 300)}
                               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400" />
                             {showSuggestions && (
-                              <div className="absolute z-10 left-0 right-0 top-full mt-1 bg-white border border-blue-100 rounded-xl shadow-lg overflow-hidden">
+                              <div className="absolute z-20 left-0 right-0 top-full mt-1 bg-white border border-blue-100 rounded-xl shadow-xl">
                                 {suggestions.map((v, si) => (
-                                  <button key={si} onMouseDown={() => {
+                                  <button key={si} onPointerDown={e => {
+                                    e.preventDefault();
                                     const r = [...bulkRows]; r[i] = { name: v.name, phone: v.phone }; setBulkRows(r); setBulkFocusedRow(null);
-                                  }} className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-gray-50 last:border-0">
+                                  }} className="w-full text-left px-3 py-2.5 hover:bg-blue-50 border-b border-gray-100 last:border-0 first:rounded-t-xl last:rounded-b-xl">
                                     <p className="text-sm font-semibold text-gray-800">{v.name}</p>
                                     <p className="text-xs text-gray-400">{v.phone || 'No phone'}</p>
                                   </button>
