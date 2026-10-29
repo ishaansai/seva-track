@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import {
@@ -237,6 +237,13 @@ export default function AdminDashboard() {
   const [bulkNutritional, setBulkNutritional] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
   const [bulkResult, setBulkResult] = useState<{ added: number; skipped: number } | null>(null);
+  const [bulkFocusedRow, setBulkFocusedRow] = useState<number | null>(null);
+
+  // Global DB (Members tab)
+  const [globalDbSearch, setGlobalDbSearch] = useState('');
+  const [newGlobalName, setNewGlobalName] = useState('');
+  const [newGlobalPhone, setNewGlobalPhone] = useState('');
+  const [globalAddSaving, setGlobalAddSaving] = useState(false);
 
   // Inline item-type editing
   const [editingSignupId, setEditingSignupId] = useState<string | null>(null);
@@ -776,6 +783,21 @@ export default function AdminDashboard() {
     return Array.from(map.values()).sort((a, b) => b.total_meal_bags - a.total_meal_bags);
   })();
 
+  // Global volunteer database — unique volunteers from all signups + members table
+  const allVolunteers = useMemo(() => {
+    const seen = new Set<string>();
+    const result: { name: string; phone: string }[] = [];
+    for (const s of signups) {
+      const key = s.member_phone || s.member_name;
+      if (!seen.has(key)) { seen.add(key); result.push({ name: s.member_name, phone: s.member_phone }); }
+    }
+    for (const m of contactList) {
+      const key = m.phone || m.name;
+      if (!seen.has(key)) { seen.add(key); result.push({ name: m.name, phone: m.phone }); }
+    }
+    return result.sort((a, b) => a.name.localeCompare(b.name));
+  }, [signups, contactList]);
+
   // This week: Sunday → Saturday containing today
   const todayDate = new Date();
   const weekStart = new Date(todayDate);
@@ -1156,20 +1178,44 @@ export default function AdminDashboard() {
                 <ItemTypePicker wantsMeals={bulkMeals} setWantsMeals={setBulkMeals} wantsNutritional={bulkNutritional} setWantsNutritional={setBulkNutritional} />
                 {!bulkMeals && !bulkNutritional && <p className="text-sm text-red-500">Select at least one item type</p>}
                 <div className="space-y-2">
-                  {bulkRows.map((row, i) => (
-                    <div key={i} className="flex gap-2 items-center">
-                      <input type="text" placeholder={`Name ${i + 1} *`} value={row.name} autoComplete="off" autoCorrect="off" autoCapitalize="words" spellCheck={false}
-                        onChange={e => { const r = [...bulkRows]; r[i] = { ...r[i], name: e.target.value }; setBulkRows(r); }}
-                        className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400" />
-                      <input type="text" inputMode="numeric" placeholder="Phone" value={row.phone} autoComplete="off"
-                        onChange={e => { const r = [...bulkRows]; r[i] = { ...r[i], phone: e.target.value }; setBulkRows(r); }}
-                        className="w-32 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400" />
-                      {bulkRows.length > 1 && (
-                        <button onClick={() => setBulkRows(bulkRows.filter((_, j) => j !== i))}
-                          className="text-gray-400 hover:text-red-500 text-lg font-bold px-1">×</button>
-                      )}
-                    </div>
-                  ))}
+                  {bulkRows.map((row, i) => {
+                    const suggestions = row.name.trim().length >= 1
+                      ? allVolunteers.filter(v => v.name.toLowerCase().includes(row.name.toLowerCase())).slice(0, 5)
+                      : [];
+                    const showSuggestions = bulkFocusedRow === i && suggestions.length > 0;
+                    return (
+                      <div key={i} className="space-y-1">
+                        <div className="flex gap-2 items-center">
+                          <div className="flex-1 relative">
+                            <input type="text" placeholder={`Name ${i + 1} *`} value={row.name} autoComplete="off" autoCorrect="off" autoCapitalize="words" spellCheck={false}
+                              onChange={e => { const r = [...bulkRows]; r[i] = { ...r[i], name: e.target.value }; setBulkRows(r); }}
+                              onFocus={() => setBulkFocusedRow(i)}
+                              onBlur={() => setTimeout(() => setBulkFocusedRow(null), 150)}
+                              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400" />
+                            {showSuggestions && (
+                              <div className="absolute z-10 left-0 right-0 top-full mt-1 bg-white border border-blue-100 rounded-xl shadow-lg overflow-hidden">
+                                {suggestions.map((v, si) => (
+                                  <button key={si} onMouseDown={() => {
+                                    const r = [...bulkRows]; r[i] = { name: v.name, phone: v.phone }; setBulkRows(r); setBulkFocusedRow(null);
+                                  }} className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-gray-50 last:border-0">
+                                    <p className="text-sm font-semibold text-gray-800">{v.name}</p>
+                                    <p className="text-xs text-gray-400">{v.phone || 'No phone'}</p>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <input type="text" inputMode="numeric" placeholder="Phone" value={row.phone} autoComplete="off"
+                            onChange={e => { const r = [...bulkRows]; r[i] = { ...r[i], phone: e.target.value }; setBulkRows(r); }}
+                            className="w-32 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400" />
+                          {bulkRows.length > 1 && (
+                            <button onClick={() => setBulkRows(bulkRows.filter((_, j) => j !== i))}
+                              className="text-gray-400 hover:text-red-500 text-lg font-bold px-1">×</button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
                 <button onClick={() => setBulkRows([...bulkRows, { name: '', phone: '' }])}
                   className="w-full py-2 rounded-xl border border-dashed border-blue-300 text-blue-600 text-sm font-medium hover:bg-blue-50">
@@ -1576,6 +1622,56 @@ Thank you for your seva! 🙏`}
         {/* ── MEMBERS ── */}
         {view === 'members' && (
           <div className="mt-2 space-y-3">
+
+            {/* Global Volunteer Database */}
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
+              <div>
+                <p className="font-bold text-gray-800 text-base">🗂 Global Volunteer Database</p>
+                <p className="text-sm text-gray-400 mt-0.5">{allVolunteers.length} volunteers on record</p>
+              </div>
+              <input type="text" placeholder="Search by name or phone…" value={globalDbSearch} onChange={e => setGlobalDbSearch(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-orange-400" />
+              <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                {allVolunteers
+                  .filter(v => !globalDbSearch.trim() || v.name.toLowerCase().includes(globalDbSearch.toLowerCase()) || v.phone.includes(globalDbSearch))
+                  .map((v, i) => (
+                    <div key={i} className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2.5">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800">{v.name}</p>
+                        <p className="text-xs text-gray-400">{v.phone || 'No phone'}</p>
+                      </div>
+                    </div>
+                  ))}
+                {allVolunteers.filter(v => !globalDbSearch.trim() || v.name.toLowerCase().includes(globalDbSearch.toLowerCase()) || v.phone.includes(globalDbSearch)).length === 0 && (
+                  <p className="text-sm text-gray-400 text-center py-3">No volunteers match "{globalDbSearch}"</p>
+                )}
+              </div>
+              {/* Add new volunteer to DB */}
+              <div className="pt-2 border-t border-gray-100 space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Add new volunteer</p>
+                <div className="flex gap-2">
+                  <input type="text" placeholder="Name *" value={newGlobalName} onChange={e => setNewGlobalName(e.target.value)} autoComplete="off" autoCorrect="off" autoCapitalize="words" spellCheck={false}
+                    className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-orange-400" />
+                  <input type="text" inputMode="numeric" placeholder="Phone" value={newGlobalPhone} onChange={e => setNewGlobalPhone(e.target.value)} autoComplete="off"
+                    className="w-32 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-orange-400" />
+                </div>
+                <button
+                  disabled={!newGlobalName.trim() || globalAddSaving}
+                  onClick={async () => {
+                    if (!newGlobalName.trim()) return;
+                    setGlobalAddSaving(true);
+                    await addMember(coordId, newGlobalName.trim(), newGlobalPhone.trim());
+                    const updated = await getMembers(coordId);
+                    setContactList(updated);
+                    setNewGlobalName(''); setNewGlobalPhone('');
+                    setGlobalAddSaving(false);
+                  }}
+                  className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-40 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors">
+                  {globalAddSaving ? 'Adding…' : '+ Add Volunteer'}
+                </button>
+              </div>
+            </div>
+
             <div className="bg-purple-50 border border-purple-100 rounded-2xl p-4">
               <p className="font-bold text-purple-800 text-base">🫙 Volunteer Contributions</p>
               <p className="text-sm text-purple-600 mt-0.5">
