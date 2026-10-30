@@ -237,7 +237,7 @@ export default function AdminDashboard() {
   const [bulkNutritional, setBulkNutritional] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
   const [bulkResult, setBulkResult] = useState<{ added: number; skipped: number } | null>(null);
-  const [bulkFocusedRow, setBulkFocusedRow] = useState<number | null>(null);
+  const [bulkFocusedRow, setBulkFocusedRow] = useState<number | null>(null); // which row dismissed suggestions
 
   // Global DB (Members tab)
   const [globalDbSearch, setGlobalDbSearch] = useState('');
@@ -1179,26 +1179,23 @@ export default function AdminDashboard() {
                 {!bulkMeals && !bulkNutritional && <p className="text-sm text-red-500">Select at least one item type</p>}
                 <div className="space-y-2">
                   {bulkRows.map((row, i) => {
-                    const suggestions = row.name.trim().length >= 1
-                      ? allVolunteers.filter(v => v.name.toLowerCase().includes(row.name.toLowerCase())).slice(0, 5)
+                    const suggestions = row.name.trim().length >= 1 && bulkFocusedRow !== i
+                      ? allVolunteers.filter(v => v.name.toLowerCase().includes(row.name.toLowerCase())).slice(0, 6)
                       : [];
-                    const showSuggestions = bulkFocusedRow === i && suggestions.length > 0;
                     return (
                       <div key={i} className="space-y-1">
                         <div className="flex gap-2 items-center">
                           <div className="flex-1 relative">
                             <input type="text" placeholder={`Name ${i + 1} *`} value={row.name} autoComplete="off" autoCorrect="off" autoCapitalize="words" spellCheck={false}
-                              onChange={e => { const r = [...bulkRows]; r[i] = { ...r[i], name: e.target.value }; setBulkRows(r); }}
-                              onFocus={() => setBulkFocusedRow(i)}
-                              onBlur={() => setTimeout(() => setBulkFocusedRow(null), 300)}
+                              onChange={e => { const r = [...bulkRows]; r[i] = { ...r[i], name: e.target.value }; setBulkFocusedRow(null); setBulkRows(r); }}
                               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400" />
-                            {showSuggestions && (
+                            {suggestions.length > 0 && (
                               <div className="absolute z-20 left-0 right-0 top-full mt-1 bg-white border border-blue-100 rounded-xl shadow-xl">
                                 {suggestions.map((v, si) => (
-                                  <button key={si} onPointerDown={e => {
+                                  <button key={si} type="button" onPointerDown={e => {
                                     e.preventDefault();
-                                    const r = [...bulkRows]; r[i] = { name: v.name, phone: v.phone }; setBulkRows(r); setBulkFocusedRow(null);
-                                  }} className="w-full text-left px-3 py-2.5 hover:bg-blue-50 border-b border-gray-100 last:border-0 first:rounded-t-xl last:rounded-b-xl">
+                                    const r = [...bulkRows]; r[i] = { name: v.name, phone: v.phone }; setBulkRows(r); setBulkFocusedRow(i);
+                                  }} className="w-full text-left px-3 py-2.5 active:bg-blue-50 hover:bg-blue-50 border-b border-gray-100 last:border-0 first:rounded-t-xl last:rounded-b-xl">
                                     <p className="text-sm font-semibold text-gray-800">{v.name}</p>
                                     <p className="text-xs text-gray-400">{v.phone || 'No phone'}</p>
                                   </button>
