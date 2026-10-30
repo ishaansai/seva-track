@@ -1174,50 +1174,65 @@ export default function AdminDashboard() {
             {showBulkImport && (
               <div className="bg-white rounded-2xl p-4 shadow-sm border border-blue-200 space-y-3">
                 <p className="font-semibold text-gray-800 text-base">📋 Bulk Import from WhatsApp Poll</p>
-                <p className="text-sm text-gray-500">Paste names + numbers from the poll. Phone is optional but recommended.</p>
                 <ItemTypePicker wantsMeals={bulkMeals} setWantsMeals={setBulkMeals} wantsNutritional={bulkNutritional} setWantsNutritional={setBulkNutritional} />
                 {!bulkMeals && !bulkNutritional && <p className="text-sm text-red-500">Select at least one item type</p>}
-                <div className="space-y-2">
-                  {bulkRows.map((row, i) => {
-                    const suggestions = row.name.trim().length >= 1 && bulkFocusedRow !== i
-                      ? allVolunteers.filter(v => v.name.toLowerCase().includes(row.name.toLowerCase())).slice(0, 6)
-                      : [];
-                    return (
-                      <div key={i} className="space-y-1">
-                        <div className="flex gap-2 items-center">
-                          <div className="flex-1 relative">
-                            <input type="text" placeholder={`Name ${i + 1} *`} value={row.name} autoComplete="off" autoCorrect="off" autoCapitalize="words" spellCheck={false}
-                              onChange={e => { const r = [...bulkRows]; r[i] = { ...r[i], name: e.target.value }; setBulkFocusedRow(null); setBulkRows(r); }}
-                              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400" />
-                            {suggestions.length > 0 && (
-                              <div className="absolute z-20 left-0 right-0 top-full mt-1 bg-white border border-blue-100 rounded-xl shadow-xl">
-                                {suggestions.map((v, si) => (
-                                  <button key={si} type="button" onPointerDown={e => {
-                                    e.preventDefault();
-                                    const r = [...bulkRows]; r[i] = { name: v.name, phone: v.phone }; setBulkRows(r); setBulkFocusedRow(i);
-                                  }} className="w-full text-left px-3 py-2.5 active:bg-blue-50 hover:bg-blue-50 border-b border-gray-100 last:border-0 first:rounded-t-xl last:rounded-b-xl">
-                                    <p className="text-sm font-semibold text-gray-800">{v.name}</p>
-                                    <p className="text-xs text-gray-400">{v.phone || 'No phone'}</p>
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                          <input type="text" inputMode="numeric" placeholder="Phone" value={row.phone} autoComplete="off"
-                            onChange={e => { const r = [...bulkRows]; r[i] = { ...r[i], phone: e.target.value }; setBulkRows(r); }}
-                            className="w-32 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400" />
-                          {bulkRows.length > 1 && (
-                            <button onClick={() => setBulkRows(bulkRows.filter((_, j) => j !== i))}
-                              className="text-gray-400 hover:text-red-500 text-lg font-bold px-1">×</button>
-                          )}
-                        </div>
+
+                {/* Search from global DB */}
+                {allVolunteers.length > 0 && (
+                  <div className="bg-blue-50 rounded-xl p-3 space-y-2">
+                    <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Search from database ({allVolunteers.length} volunteers)</p>
+                    <input type="text" placeholder="Type name to search…" value={globalDbSearch} onChange={e => setGlobalDbSearch(e.target.value)}
+                      autoComplete="off" autoCorrect="off" spellCheck={false}
+                      className="w-full border border-blue-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400 bg-white" />
+                    {globalDbSearch.trim().length >= 1 && (
+                      <div className="space-y-1 max-h-48 overflow-y-auto">
+                        {allVolunteers.filter(v => v.name.toLowerCase().includes(globalDbSearch.toLowerCase()) || v.phone.includes(globalDbSearch)).slice(0, 8).map((v, si) => {
+                          const alreadyAdded = bulkRows.some(r => r.name === v.name && r.phone === v.phone);
+                          return (
+                            <button key={si} type="button" onClick={() => {
+                              if (alreadyAdded) return;
+                              const emptyIdx = bulkRows.findIndex(r => !r.name.trim());
+                              if (emptyIdx >= 0) {
+                                const r = [...bulkRows]; r[emptyIdx] = { name: v.name, phone: v.phone }; setBulkRows(r);
+                              } else {
+                                setBulkRows([...bulkRows, { name: v.name, phone: v.phone }]);
+                              }
+                              setGlobalDbSearch('');
+                            }}
+                            className={`w-full text-left px-3 py-2 rounded-lg border text-sm transition-colors ${alreadyAdded ? 'bg-green-50 border-green-200 opacity-60 cursor-default' : 'bg-white border-blue-100 active:bg-blue-50 hover:bg-blue-50'}`}>
+                              <span className="font-semibold text-gray-800">{v.name}</span>
+                              <span className="text-gray-400 ml-2 text-xs">{v.phone || 'No phone'}</span>
+                              {alreadyAdded && <span className="ml-2 text-xs text-green-600">✓ added</span>}
+                            </button>
+                          );
+                        })}
+                        {allVolunteers.filter(v => v.name.toLowerCase().includes(globalDbSearch.toLowerCase()) || v.phone.includes(globalDbSearch)).length === 0 && (
+                          <p className="text-xs text-gray-400 px-1">No volunteers match — add manually below</p>
+                        )}
                       </div>
-                    );
-                  })}
+                    )}
+                  </div>
+                )}
+
+                {/* Manual rows */}
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Added ({bulkRows.filter(r => r.name.trim()).length})</p>
+                <div className="space-y-2">
+                  {bulkRows.map((row, i) => (
+                    <div key={i} className="flex gap-2 items-center">
+                      <input type="text" placeholder={`Name ${i + 1} *`} value={row.name} autoComplete="off" autoCorrect="off" autoCapitalize="words" spellCheck={false}
+                        onChange={e => { const r = [...bulkRows]; r[i] = { ...r[i], name: e.target.value }; setBulkRows(r); }}
+                        className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400" />
+                      <input type="text" inputMode="numeric" placeholder="Phone" value={row.phone} autoComplete="off"
+                        onChange={e => { const r = [...bulkRows]; r[i] = { ...r[i], phone: e.target.value }; setBulkRows(r); }}
+                        className="w-28 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400" />
+                      <button onClick={() => setBulkRows(bulkRows.length > 1 ? bulkRows.filter((_, j) => j !== i) : [{ name: '', phone: '' }])}
+                        className="text-gray-400 hover:text-red-500 text-lg font-bold px-1">×</button>
+                    </div>
+                  ))}
                 </div>
                 <button onClick={() => setBulkRows([...bulkRows, { name: '', phone: '' }])}
                   className="w-full py-2 rounded-xl border border-dashed border-blue-300 text-blue-600 text-sm font-medium hover:bg-blue-50">
-                  + Add Row
+                  + Add Row Manually
                 </button>
                 {bulkResult && (
                   <div className={`rounded-xl p-3 text-sm font-medium ${bulkResult.added > 0 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gray-50 text-gray-600 border border-gray-200'}`}>
