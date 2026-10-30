@@ -237,7 +237,6 @@ export default function AdminDashboard() {
   const [bulkNutritional, setBulkNutritional] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
   const [bulkResult, setBulkResult] = useState<{ added: number; skipped: number } | null>(null);
-  const [bulkFocusedRow, setBulkFocusedRow] = useState<number | null>(null); // which row dismissed suggestions
 
   // Global DB (Members tab)
   const [globalDbSearch, setGlobalDbSearch] = useState('');
@@ -1656,7 +1655,7 @@ Thank you for your seva! 🙏`}
                     </div>
                   ))}
                 {allVolunteers.filter(v => !globalDbSearch.trim() || v.name.toLowerCase().includes(globalDbSearch.toLowerCase()) || v.phone.includes(globalDbSearch)).length === 0 && (
-                  <p className="text-sm text-gray-400 text-center py-3">No volunteers match "{globalDbSearch}"</p>
+                  <p className="text-sm text-gray-400 text-center py-3">No volunteers match &ldquo;{globalDbSearch}&rdquo;</p>
                 )}
               </div>
               {/* Add new volunteer to DB */}
