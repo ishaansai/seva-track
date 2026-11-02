@@ -346,21 +346,23 @@ export async function addSignup(data: {
   item_type: ItemType;
   added_by_admin?: boolean;
 }): Promise<Signup> {
-  // Use the first name on record for this phone number (so family members all get same name)
-  let memberName = data.member_name;
-  if (data.member_phone) {
-    const { data: existing } = await supabase
+  const cleanPhone = data.member_phone.replace(/\D/g, '');
+  const memberName = data.member_name;
+
+  // Prevent duplicate signups for the same person + event
+  if (cleanPhone) {
+    const { data: dupe } = await supabase
       .from('signups')
-      .select('member_name')
-      .eq('coord_id', data.coord_id)
-      .eq('member_phone', data.member_phone.replace(/\D/g, ''))
-      .order('signed_up_at', { ascending: true })
-      .limit(1);
-    if (existing?.[0]?.member_name) memberName = existing[0].member_name;
+      .select('*')
+      .eq('event_id', data.event_id)
+      .eq('member_phone', cleanPhone)
+      .maybeSingle();
+    if (dupe) return dupe as Signup;
   }
+
   const { data: row, error } = await supabase
     .from('signups')
-    .insert({ ...data, member_name: memberName, status: 'pending' })
+    .insert({ ...data, member_phone: cleanPhone, member_name: memberName.trim(), status: 'pending' })
     .select()
     .single();
   if (error || !row) throw new Error(error?.message ?? 'Failed to add signup');
