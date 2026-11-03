@@ -1,12 +1,24 @@
-/**
- * sendSMS — tries Textbelt first, falls back to Twilio.
- *
- * Textbelt is the primary provider (no A2P registration needed).
- * Twilio is the fallback — it kicks in automatically once the A2P
- * 10DLC campaign (CM4e2f6309ad84e9df69d2f3b63888f9ae) gets approved,
- * which typically takes 2-3 weeks.
- */
 import twilio from 'twilio';
+
+async function sendViaVonage(to: string, body: string): Promise<void> {
+  const apiKey = process.env.VONAGE_API_KEY!;
+  const apiSecret = process.env.VONAGE_API_SECRET!;
+  const from = process.env.VONAGE_FROM ?? 'SevaCommons';
+  const digits = to.replace(/\D/g, '');
+  const normalized = digits.startsWith('1') ? digits : '1' + digits;
+
+  const res = await fetch('https://rest.nexmo.com/sms/json', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ api_key: apiKey, api_secret: apiSecret, to: normalized, from, text: body }),
+  });
+
+  const json = (await res.json()) as { messages: { status: string; 'error-text'?: string }[] };
+  const msg = json.messages?.[0];
+  if (!msg || msg.status !== '0') {
+    throw new Error(`Vonage: ${msg?.['error-text'] ?? 'unknown error'} (status ${msg?.status})`);
+  }
+}
 
 async function sendViaTwilio(to: string, body: string): Promise<void> {
   const client = twilio(
@@ -38,7 +50,17 @@ async function sendViaTextbelt(to: string, body: string, key: string): Promise<v
 }
 
 export async function sendSMS(to: string, body: string): Promise<void> {
-  // Try Textbelt keys in order — if one hits its daily limit, the next one takes over
+  // Try Vonage first (primary provider — no per-IP rate limit)
+  if (process.env.VONAGE_API_KEY && process.env.VONAGE_API_SECRET) {
+    try {
+      await sendViaVonage(to, body);
+      return;
+    } catch (err) {
+      console.warn('[sms] Vonage failed, trying Textbelt:', err);
+    }
+  }
+
+  // Try Textbelt keys in order
   const textbeltKeys = [
     process.env.TEXTBELT_KEY,
     process.env.TEXTBELT_KEY_2,
@@ -53,8 +75,7 @@ export async function sendSMS(to: string, body: string): Promise<void> {
     }
   }
 
-  // All Textbelt keys exhausted — fall back to Twilio
-  // (works automatically once A2P campaign CM4e2f6309ad84e9df69d2f3b63888f9ae is approved)
+  // Fall back to Twilio
   console.warn('[sms] All Textbelt keys exhausted, falling back to Twilio');
   await sendViaTwilio(to, body);
 }
