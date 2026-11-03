@@ -29,10 +29,10 @@ export async function GET(request: Request) {
 
   const results: string[] = [];
 
-  // Start-of-week reminder: every Monday, remind all volunteers signed up
+  // Start-of-week reminder: every Sunday, remind all volunteers signed up
   // for events happening in the next 7 days.
-  const isMonday = today.getDay() === 1;
-  if (isMonday) {
+  const isSunday = today.getDay() === 0;
+  if (isSunday) {
     const weekEnd = dateIn(7);
     const weekStart = today.toISOString().slice(0, 10);
 
