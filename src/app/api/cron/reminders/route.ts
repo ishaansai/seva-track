@@ -65,5 +65,32 @@ export async function GET(request: Request) {
     }
   }
 
+  // Day-before reminder: every day, remind volunteers whose event is tomorrow.
+  const tomorrow = dateIn(1);
+  const { data: tomorrowEvents } = await admin
+    .from('events')
+    .select('*')
+    .eq('date', tomorrow);
+
+  for (const event of (tomorrowEvents ?? [])) {
+    const { data: signups } = await admin
+      .from('signups').select('*')
+      .eq('event_id', event.id)
+      .neq('status', 'cancelled');
+
+    for (const s of (signups ?? [])) {
+      if (!s.member_phone) continue;
+      try {
+        await sendSMS(
+          s.member_phone,
+          `Hi ${s.member_name}! 🙏 Seva Commons reminder: your meal bag delivery is TOMORROW (${fmt(event.date)})!\n\nDrop-off: ${formatTime(event.drop_off_start)}–${formatTime(event.drop_off_end)}\nLocation: ${event.drop_off_location}\n\nThank you for your seva! 🌸`,
+        );
+        results.push(`day-before → ${s.member_name} (${s.member_phone})`);
+      } catch (e) {
+        results.push(`day-before FAILED → ${s.member_name}: ${e}`);
+      }
+    }
+  }
+
   return NextResponse.json({ sent: results.length, results });
 }
