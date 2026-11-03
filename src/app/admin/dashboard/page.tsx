@@ -776,7 +776,7 @@ export default function AdminDashboard() {
         if (s.item_type === 'meals' || s.item_type === 'both') { c.meal_bag_deliveries++; c.total_meal_bags += 20; }
         if (s.item_type === 'nutritional' || s.item_type === 'both') { c.nutritional_deliveries++; }
       }
-      if (s.signed_up_at > c.last_signup) c.last_signup = s.signed_up_at;
+      if (s.signed_up_at > c.last_signup) { c.last_signup = s.signed_up_at; c.member_name = s.member_name; }
       if (s.signed_up_at < c.first_signup) c.first_signup = s.signed_up_at;
     }
     return Array.from(map.values()).sort((a, b) => b.total_meal_bags - a.total_meal_bags);
@@ -784,17 +784,21 @@ export default function AdminDashboard() {
 
   // Global volunteer database — unique volunteers from all signups + members table
   const allVolunteers = useMemo(() => {
-    const seen = new Set<string>();
-    const result: { name: string; phone: string }[] = [];
+    const map = new Map<string, { name: string; phone: string; at: string }>();
     for (const s of signups) {
       const key = s.member_phone || s.member_name;
-      if (!seen.has(key)) { seen.add(key); result.push({ name: s.member_name, phone: s.member_phone }); }
+      const existing = map.get(key);
+      if (!existing || s.signed_up_at > existing.at) {
+        map.set(key, { name: s.member_name, phone: s.member_phone, at: s.signed_up_at });
+      }
     }
     for (const m of contactList) {
       const key = m.phone || m.name;
-      if (!seen.has(key)) { seen.add(key); result.push({ name: m.name, phone: m.phone }); }
+      if (!map.has(key)) { map.set(key, { name: m.name, phone: m.phone, at: '' }); }
     }
-    return result.sort((a, b) => a.name.localeCompare(b.name));
+    return Array.from(map.values())
+      .map(({ name, phone }) => ({ name, phone }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [signups, contactList]);
 
   // This week: Sunday → Saturday containing today
