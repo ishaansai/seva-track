@@ -65,6 +65,24 @@ export async function GET(request: Request) {
     }
   }
 
+  // Same-day reminder: if ?today=1 is passed, send reminders for today's events.
+  const sendToday = new URL(request.url).searchParams.get('today') === '1';
+  if (sendToday) {
+    const todayStr = today.toISOString().slice(0, 10);
+    const { data: todayEvents } = await admin.from('events').select('*').eq('date', todayStr);
+    for (const event of (todayEvents ?? [])) {
+      const { data: signups } = await admin.from('signups').select('*').eq('event_id', event.id).neq('status', 'cancelled');
+      for (const s of (signups ?? [])) {
+        if (!s.member_phone) continue;
+        try {
+          const itemLabel = s.item_type === 'meals' ? 'Meal Bags' : s.item_type === 'nutritional' ? 'Nutritional Items' : 'Meal Bags + Nutritional Items';
+          await sendSMS(s.member_phone, `Hi ${s.member_name}! 🙏 Seva Commons reminder: you're signed up for meal bag delivery TODAY (${fmt(event.date)}) — ${itemLabel}.\n\nDrop-off: ${formatTime(event.drop_off_start)}–${formatTime(event.drop_off_end)}\nLocation: ${event.drop_off_location}\n\nThank you for your seva! 🌸`);
+          results.push(`today → ${s.member_name} (${s.member_phone})`);
+        } catch (e) { results.push(`today FAILED → ${s.member_name}: ${e}`); }
+      }
+    }
+  }
+
   // Day-before reminder: every day, remind volunteers whose event is tomorrow.
   const tomorrow = dateIn(1);
   const { data: tomorrowEvents } = await admin
