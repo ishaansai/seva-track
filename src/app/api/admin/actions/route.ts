@@ -84,18 +84,8 @@ export async function POST(request: Request) {
     // Normalise phone
     const phone = body.member_phone ? body.member_phone.replace(/\D/g, '') : '';
 
-    // Look up existing name for this phone under this coordinator
-    let memberName = body.member_name;
-    if (phone) {
-      const { data: existing } = await admin
-        .from('signups')
-        .select('member_name')
-        .eq('coord_id', eventCoordId)
-        .eq('member_phone', phone)
-        .order('signed_up_at', { ascending: true })
-        .limit(1);
-      if (existing?.[0]?.member_name) memberName = existing[0].member_name;
-    }
+    // Use the name as typed by the coordinator — do not override with a DB lookup
+    const memberName = body.member_name;
 
     const { data, error } = await admin
       .from('signups')
@@ -246,7 +236,8 @@ export async function POST(request: Request) {
       ? `${formatTime(ev.drop_off_start)}–${formatTime(ev.drop_off_end)}`
       : '';
 
-    const msg = `Hi ${s.member_name}! 🙏 Seva Commons reminder: you're signed up to deliver meal bags on ${dayLabel}.\n\nDrop-off: ${dropOff}\nLocation: ${ev.drop_off_location ?? ''}\n\nThank you for your seva! Reply STOP to opt out.`;
+    const itemLabel = s.item_type === 'meals' ? 'Meal Bags' : s.item_type === 'nutritional' ? 'Nutritional Items' : 'Meal Bags + Nutritional Items';
+    const msg = `Hi ${s.member_name}! 🙏 Seva Commons reminder: you're signed up to deliver ${itemLabel} on ${dayLabel}.\n\nDrop-off: ${dropOff}\nLocation: ${ev.drop_off_location ?? ''}\n\nThank you for your seva! Reply STOP to opt out.`;
 
     try {
       await sendSMS(s.member_phone, msg);
