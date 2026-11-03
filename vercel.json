@@ -2,6 +2,6 @@
   "crons": [
     { "path": "/api/ping", "schedule": "0 12 * * *" },
     { "path": "/api/cron/reminders", "schedule": "0 15 * * *" },
-    { "path": "/api/cron/today-reminders", "schedule": "0 12 1 1 1" }
+    { "path": "/api/cron/today-reminders", "schedule": "0 0 1 1 *" }
   ]
 }
