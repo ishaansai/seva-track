@@ -3,7 +3,7 @@ import twilio from 'twilio';
 async function sendViaVonage(to: string, body: string): Promise<void> {
   const apiKey = process.env.VONAGE_API_KEY!;
   const apiSecret = process.env.VONAGE_API_SECRET!;
-  const from = process.env.VONAGE_FROM ?? '19714168924';
+  const from = process.env.VONAGE_FROM ?? '14244288526';
   const digits = to.replace(/\D/g, '');
   const normalized = digits.startsWith('1') ? digits : '1' + digits;
 
